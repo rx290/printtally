@@ -4,17 +4,26 @@ script and the OrcaSlicer/PrusaSlicer post-processing script. Pure Python, no
 slicer dependency, so both adapters can import it directly.
 
 Formula source: a "How to Price your 3D Prints ACCURATELY" short-form video's
-caption breakdown (six line items):
+caption breakdown, extended with one more factor at the repo owner's explicit
+request -- design cost, gated behind its own on/off switch since a repeat
+print of an existing design shouldn't carry a design charge, but a genuinely
+custom job should:
 
-  1. Material Cost   = model_weight_g * (price_per_kg / 1000)
-  2. Machine Cost     = machine_rate_per_hour * print_hours
-  3. Electricity Cost = (printer_watts * print_hours / 1000) * electricity_rate_per_kwh
+  1. Material Cost    = model_weight_g * (price_per_kg / 1000)
+  2. Machine Cost      = machine_rate_per_hour * print_hours
+  3. Electricity Cost  = (printer_watts * print_hours / 1000) * electricity_rate_per_kwh
   4. Waste/Maintenance = waste_pct * (material + machine + electricity)
-  5. Post-processing   = post_processing_rate_per_hour * post_processing_hours
-  6. Selling costs     = packaging_cost + shipping_cost + (marketing_fee_pct * subtotal)
-  Profit margin        = margin_pct * (sum of 1-6)
+  5. Labor cost        = post_processing_rate_per_hour * post_processing_hours
+                         (support removal, finishing, quality check)
+  6. Design cost       = design_rate_per_hour * design_hours,
+                         ONLY IF include_design_cost is True -- otherwise 0,
+                         regardless of what design_hours/design_rate_per_hour
+                         are set to. This is a real on/off switch, not just a
+                         rate you have to remember to zero out.
+  7. Selling costs     = packaging_cost + shipping_cost + (marketing_fee_pct * subtotal)
+  Profit margin        = margin_pct * (sum of 1-7)
 
-Final price = (1-6) + profit margin
+Final price = (1-7) + profit margin
 """
 
 from dataclasses import dataclass, field
@@ -40,11 +49,18 @@ class CostInputs:
     # 4. Waste and maintenance
     waste_pct: float = 0.07                  # video's stated range: 5-10%
 
-    # 5. Post-processing (support removal, finishing, quality check)
+    # 5. Labor (support removal, finishing, quality check)
     post_processing_hours: float = 0.0
     post_processing_rate_per_hour: float = 0.0
 
-    # 6. Selling costs
+    # 6. Design cost -- a real checkbox, not just a rate to remember to zero.
+    # Off by default: most prints are repeats of an existing design and
+    # shouldn't carry a design charge. Turn it on for a genuinely custom job.
+    include_design_cost: bool = False
+    design_hours: float = 0.0
+    design_rate_per_hour: float = 0.0
+
+    # 7. Selling costs
     packaging_cost: float = 0.0
     shipping_cost: float = 0.0
     marketing_fee_pct: float = 0.0           # e.g. marketplace/referral fee
@@ -60,6 +76,7 @@ class CostBreakdown:
     electricity_cost: float
     waste_maintenance_cost: float
     post_processing_cost: float
+    design_cost: float
     selling_cost: float
     subtotal: float
     profit_margin: float
@@ -79,6 +96,10 @@ def calculate_cost(inputs: CostInputs) -> CostBreakdown:
         raise ValueError("marketing_fee_pct must be between 0 and 1")
     if inputs.profit_margin_pct < 0:
         raise ValueError("profit_margin_pct cannot be negative")
+    if inputs.design_hours < 0:
+        raise ValueError("design_hours cannot be negative")
+    if inputs.design_rate_per_hour < 0:
+        raise ValueError("design_rate_per_hour cannot be negative")
 
     material_cost = inputs.model_weight_g * (inputs.price_per_kg / 1000.0)
     machine_cost = inputs.machine_rate_per_hour * inputs.print_hours
@@ -87,6 +108,10 @@ def calculate_cost(inputs: CostInputs) -> CostBreakdown:
     ) * inputs.electricity_rate_per_kwh
     post_processing_cost = (
         inputs.post_processing_rate_per_hour * inputs.post_processing_hours
+    )
+    design_cost = (
+        inputs.design_rate_per_hour * inputs.design_hours
+        if inputs.include_design_cost else 0.0
     )
 
     # Waste/maintenance is a percentage of the three "running the printer"
@@ -102,6 +127,7 @@ def calculate_cost(inputs: CostInputs) -> CostBreakdown:
         production_subtotal
         + waste_maintenance_cost
         + post_processing_cost
+        + design_cost
         + selling_cost_fixed
     )
     marketing_fee = inputs.marketing_fee_pct * pre_marketing_subtotal
@@ -117,6 +143,7 @@ def calculate_cost(inputs: CostInputs) -> CostBreakdown:
         electricity_cost=round(electricity_cost, 2),
         waste_maintenance_cost=round(waste_maintenance_cost, 2),
         post_processing_cost=round(post_processing_cost, 2),
+        design_cost=round(design_cost, 2),
         selling_cost=round(selling_cost, 2),
         subtotal=round(subtotal, 2),
         profit_margin=round(profit_margin, 2),
@@ -130,10 +157,11 @@ def format_breakdown(breakdown: CostBreakdown, currency: str = "") -> str:
 
     lines = [
         f"Material cost:          {money(breakdown.material_cost)}",
-        f"Machine cost:           {money(breakdown.machine_cost)}",
+        f"Printing cost:          {money(breakdown.machine_cost)}",
         f"Electricity cost:       {money(breakdown.electricity_cost)}",
-        f"Waste/maintenance:      {money(breakdown.waste_maintenance_cost)}",
-        f"Post-processing:        {money(breakdown.post_processing_cost)}",
+        f"Maintenance cost:       {money(breakdown.waste_maintenance_cost)}",
+        f"Labor cost:             {money(breakdown.post_processing_cost)}",
+        f"Design cost:            {money(breakdown.design_cost)}",
         f"Selling costs:          {money(breakdown.selling_cost)}",
         f"Subtotal:               {money(breakdown.subtotal)}",
         f"Profit margin:          {money(breakdown.profit_margin)}",

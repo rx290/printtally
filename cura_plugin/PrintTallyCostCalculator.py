@@ -93,6 +93,31 @@ class PrintTallyCostCalculator(Script):
                     "default_value": 0.0,
                     "minimum_value": 0
                 },
+                "include_design_cost":
+                {
+                    "label": "Include design cost",
+                    "description": "Only check this for a genuinely custom job -- leave it unchecked for a repeat print of an existing design. When unchecked, the two design fields below have no effect on the price at all.",
+                    "type": "bool",
+                    "default_value": false
+                },
+                "design_hours":
+                {
+                    "label": "Design time (hours)",
+                    "description": "Time spent designing this model. Only counted if 'Include design cost' is checked.",
+                    "type": "float",
+                    "default_value": 0.0,
+                    "minimum_value": 0,
+                    "enabled": "include_design_cost"
+                },
+                "design_rate_per_hour":
+                {
+                    "label": "Design rate per hour",
+                    "description": "Your hourly rate for design time. Only counted if 'Include design cost' is checked.",
+                    "type": "float",
+                    "default_value": 0.0,
+                    "minimum_value": 0,
+                    "enabled": "include_design_cost"
+                },
                 "packaging_cost":
                 {
                     "label": "Packaging cost",
@@ -167,6 +192,9 @@ class PrintTallyCostCalculator(Script):
             waste_pct=self.getSettingValueByKey("waste_pct") / 100.0,
             post_processing_hours=self.getSettingValueByKey("post_processing_hours"),
             post_processing_rate_per_hour=self.getSettingValueByKey("post_processing_rate_per_hour"),
+            include_design_cost=self.getSettingValueByKey("include_design_cost"),
+            design_hours=self.getSettingValueByKey("design_hours"),
+            design_rate_per_hour=self.getSettingValueByKey("design_rate_per_hour"),
             packaging_cost=self.getSettingValueByKey("packaging_cost"),
             shipping_cost=self.getSettingValueByKey("shipping_cost"),
             marketing_fee_pct=self.getSettingValueByKey("marketing_fee_pct") / 100.0,
@@ -180,7 +208,8 @@ class PrintTallyCostCalculator(Script):
             f";  Machine cost:       {currency}{breakdown['machine_cost']:.2f}",
             f";  Electricity cost:   {currency}{breakdown['electricity_cost']:.2f}",
             f";  Waste/maintenance:  {currency}{breakdown['waste_maintenance_cost']:.2f}",
-            f";  Post-processing:    {currency}{breakdown['post_processing_cost']:.2f}",
+            f";  Labor cost:         {currency}{breakdown['post_processing_cost']:.2f}",
+            f";  Design cost:        {currency}{breakdown['design_cost']:.2f}",
             f";  Selling costs:      {currency}{breakdown['selling_cost']:.2f}",
             f";  Subtotal:           {currency}{breakdown['subtotal']:.2f}",
             f";  Profit margin:      {currency}{breakdown['profit_margin']:.2f}",
@@ -194,6 +223,7 @@ class PrintTallyCostCalculator(Script):
         model_weight_g, price_per_kg, print_hours, machine_rate_per_hour,
         printer_watts, electricity_rate_per_kwh, waste_pct,
         post_processing_hours, post_processing_rate_per_hour,
+        include_design_cost, design_hours, design_rate_per_hour,
         packaging_cost, shipping_cost, marketing_fee_pct, profit_margin_pct,
     ):
         """
@@ -209,11 +239,14 @@ class PrintTallyCostCalculator(Script):
             raise ValueError("waste_pct and marketing_fee_pct must be between 0 and 1")
         if profit_margin_pct < 0:
             raise ValueError("profit_margin_pct cannot be negative")
+        if design_hours < 0 or design_rate_per_hour < 0:
+            raise ValueError("design_hours and design_rate_per_hour cannot be negative")
 
         material_cost = model_weight_g * (price_per_kg / 1000.0)
         machine_cost = machine_rate_per_hour * print_hours
         electricity_cost = ((printer_watts * print_hours) / 1000.0) * electricity_rate_per_kwh
         post_processing_cost = post_processing_rate_per_hour * post_processing_hours
+        design_cost = (design_rate_per_hour * design_hours) if include_design_cost else 0.0
 
         production_subtotal = material_cost + machine_cost + electricity_cost
         waste_maintenance_cost = waste_pct * production_subtotal
@@ -221,7 +254,7 @@ class PrintTallyCostCalculator(Script):
         selling_cost_fixed = packaging_cost + shipping_cost
         pre_marketing_subtotal = (
             production_subtotal + waste_maintenance_cost
-            + post_processing_cost + selling_cost_fixed
+            + post_processing_cost + design_cost + selling_cost_fixed
         )
         marketing_fee = marketing_fee_pct * pre_marketing_subtotal
         selling_cost = selling_cost_fixed + marketing_fee
@@ -236,6 +269,7 @@ class PrintTallyCostCalculator(Script):
             "electricity_cost": round(electricity_cost, 2),
             "waste_maintenance_cost": round(waste_maintenance_cost, 2),
             "post_processing_cost": round(post_processing_cost, 2),
+            "design_cost": round(design_cost, 2),
             "selling_cost": round(selling_cost, 2),
             "subtotal": round(subtotal, 2),
             "profit_margin": round(profit_margin, 2),

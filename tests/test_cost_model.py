@@ -150,6 +150,77 @@ def test_invalid_inputs_raise_value_error(field, value):
         calculate_cost(CostInputs(**kwargs))
 
 
+def test_design_cost_is_zero_when_toggle_is_off_even_with_nonzero_hours_and_rate():
+    """The critical case: the checkbox is a real switch, not just a default
+    of zero you have to remember to keep zeroed. design_hours/rate being set
+    to real nonzero values must NOT leak into the price when the toggle is off."""
+    inputs = CostInputs(
+        model_weight_g=0.0, price_per_kg=0.0, print_hours=0.0,
+        machine_rate_per_hour=0.0, printer_watts=0.0, electricity_rate_per_kwh=0.0,
+        waste_pct=0.0, include_design_cost=False,
+        design_hours=5.0, design_rate_per_hour=1000.0,
+        profit_margin_pct=0.0,
+    )
+    result = calculate_cost(inputs)
+    assert result.design_cost == 0.0
+    assert result.final_price == 0.0
+
+
+def test_design_cost_is_included_when_toggle_is_on():
+    inputs = CostInputs(
+        model_weight_g=0.0, price_per_kg=0.0, print_hours=0.0,
+        machine_rate_per_hour=0.0, printer_watts=0.0, electricity_rate_per_kwh=0.0,
+        waste_pct=0.0, include_design_cost=True,
+        design_hours=2.0, design_rate_per_hour=500.0,
+        profit_margin_pct=0.0,
+    )
+    result = calculate_cost(inputs)
+    assert result.design_cost == 1000.0
+    assert result.final_price == 1000.0
+
+
+def test_design_cost_not_subject_to_waste_pct_same_as_labor_cost():
+    inputs = CostInputs(
+        model_weight_g=100.0, price_per_kg=1000.0, print_hours=0.0,
+        machine_rate_per_hour=0.0, printer_watts=0.0, electricity_rate_per_kwh=0.0,
+        waste_pct=0.10, include_design_cost=True,
+        design_hours=1.0, design_rate_per_hour=200.0,
+        profit_margin_pct=0.0,
+    )
+    result = calculate_cost(inputs)
+    # material=100 -> waste = 10% of 100 = 10, NOT 10% of (100+200)
+    assert result.waste_maintenance_cost == 10.0
+    assert result.design_cost == 200.0
+    assert result.final_price == 310.0
+
+
+def test_design_cost_subject_to_profit_margin_like_everything_else():
+    inputs = CostInputs(
+        model_weight_g=0.0, price_per_kg=0.0, print_hours=0.0,
+        machine_rate_per_hour=0.0, printer_watts=0.0, electricity_rate_per_kwh=0.0,
+        waste_pct=0.0, include_design_cost=True,
+        design_hours=1.0, design_rate_per_hour=100.0,
+        profit_margin_pct=0.20,
+    )
+    result = calculate_cost(inputs)
+    assert result.design_cost == 100.0
+    assert result.subtotal == 100.0
+    assert result.profit_margin == 20.0
+    assert result.final_price == 120.0
+
+
+@pytest.mark.parametrize("field,value", [
+    ("design_hours", -1.0),
+    ("design_rate_per_hour", -1.0),
+])
+def test_invalid_design_cost_inputs_raise_value_error(field, value):
+    kwargs = dict(model_weight_g=10.0, price_per_kg=100.0, print_hours=1.0,
+                  include_design_cost=True)
+    kwargs[field] = value
+    with pytest.raises(ValueError):
+        calculate_cost(CostInputs(**kwargs))
+
+
 def test_zero_weight_and_zero_hours_gives_zero_cost():
     inputs = CostInputs(
         model_weight_g=0.0, price_per_kg=100.0, print_hours=0.0,

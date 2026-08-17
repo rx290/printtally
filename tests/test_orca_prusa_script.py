@@ -79,6 +79,33 @@ def test_missing_time_footer_raises_clear_error(tmp_path):
     assert "estimated printing time" in result.stderr
 
 
+def test_design_cost_excluded_by_default_even_if_hours_and_rate_given(tmp_path):
+    gcode_file = tmp_path / "test.gcode"
+    gcode_file.write_text(REAL_FOOTER_SHAPE)
+
+    # design-hours/design-rate given but --include-design-cost NOT passed --
+    # must have zero effect on the price.
+    result = _run_script(gcode_file, extra_args=[
+        "--design-hours", "10", "--design-rate", "1000",
+    ])
+    assert result.returncode == 0, result.stderr
+    assert "Design cost:            0.00" in result.stdout
+
+
+def test_design_cost_included_when_flag_passed(tmp_path):
+    gcode_file = tmp_path / "test.gcode"
+    gcode_file.write_text(REAL_FOOTER_SHAPE)
+
+    result = _run_script(gcode_file, extra_args=[
+        "--machine-rate", "0", "--waste-pct", "0", "--margin-pct", "0",
+        "--price-per-kg", "0", "--electricity-rate", "0",
+        "--include-design-cost", "--design-hours", "2", "--design-rate", "500",
+    ])
+    assert result.returncode == 0, result.stderr
+    assert "Design cost:            1000.00" in result.stdout
+    assert "FINAL PRICE:            1000.00" in result.stdout
+
+
 def test_days_hours_minutes_seconds_all_parse_when_present(tmp_path):
     gcode_file = tmp_path / "long_print.gcode"
     gcode_file.write_text(

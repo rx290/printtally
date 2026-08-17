@@ -6,7 +6,13 @@ Configure in Print Settings -> Output options -> Post-processing scripts,
 pointing at this file's absolute path plus your cost parameters, e.g.:
 
     /path/to/printtally_postprocess.py --price-per-kg 2500 --machine-rate 40 \
-        --watts 250 --electricity-rate 12 --waste-pct 0.07 --margin-pct 0.25
+        --watts 250 --electricity-rate 12 --waste-pct 0.07 --margin-pct 0.25 \
+        --include-design-cost --design-hours 1.5 --design-rate 500
+
+--include-design-cost is a real on/off switch: omit it for a repeat print of
+an existing design, add it (along with --design-hours/--design-rate) only
+for a genuinely custom job. --design-hours/--design-rate have no effect at
+all unless --include-design-cost is also passed.
 
 The slicer appends the G-code file's path as the final argument automatically
 -- do not add it yourself. This script reads the slicer's own footer comments
@@ -74,6 +80,11 @@ def main() -> int:
     parser.add_argument("--waste-pct", type=float, default=0.07)
     parser.add_argument("--post-processing-hours", type=float, default=0.0)
     parser.add_argument("--post-processing-rate", type=float, default=0.0)
+    parser.add_argument("--include-design-cost", action="store_true",
+                         help="Only add design cost for a genuinely custom job -- "
+                              "leave this off for a repeat print of an existing design.")
+    parser.add_argument("--design-hours", type=float, default=0.0)
+    parser.add_argument("--design-rate", type=float, default=0.0)
     parser.add_argument("--packaging-cost", type=float, default=0.0)
     parser.add_argument("--shipping-cost", type=float, default=0.0)
     parser.add_argument("--marketing-fee-pct", type=float, default=0.0)
@@ -98,6 +109,9 @@ def main() -> int:
         waste_pct=args.waste_pct,
         post_processing_hours=args.post_processing_hours,
         post_processing_rate_per_hour=args.post_processing_rate,
+        include_design_cost=args.include_design_cost,
+        design_hours=args.design_hours,
+        design_rate_per_hour=args.design_rate,
         packaging_cost=args.packaging_cost,
         shipping_cost=args.shipping_cost,
         marketing_fee_pct=args.marketing_fee_pct,

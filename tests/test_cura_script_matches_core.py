@@ -80,6 +80,9 @@ def _random_kwargs(rng):
         waste_pct=rng.uniform(0, 1),
         post_processing_hours=rng.uniform(0, 5),
         post_processing_rate_per_hour=rng.uniform(0, 1000),
+        include_design_cost=rng.choice([True, False]),
+        design_hours=rng.uniform(0, 10),
+        design_rate_per_hour=rng.uniform(0, 2000),
         packaging_cost=rng.uniform(0, 50),
         shipping_cost=rng.uniform(0, 100),
         marketing_fee_pct=rng.uniform(0, 1),
@@ -100,10 +103,28 @@ def test_cura_script_and_core_module_agree_on_50_random_inputs(cura_module):
         assert cura_result["electricity_cost"] == core_result.electricity_cost
         assert cura_result["waste_maintenance_cost"] == core_result.waste_maintenance_cost
         assert cura_result["post_processing_cost"] == core_result.post_processing_cost
+        assert cura_result["design_cost"] == core_result.design_cost
         assert cura_result["selling_cost"] == core_result.selling_cost
         assert cura_result["subtotal"] == core_result.subtotal
         assert cura_result["profit_margin"] == core_result.profit_margin
         assert cura_result["final_price"] == core_result.final_price
+
+
+def test_cura_script_design_cost_toggle_matches_core_when_off(cura_module):
+    """The critical case in the Cura script specifically, not just core:
+    design_hours/design_rate_per_hour must have zero effect when the
+    include_design_cost checkbox is off, exactly like core.cost_model."""
+    kwargs = _random_kwargs(random.Random(7))
+    kwargs["include_design_cost"] = False
+    kwargs["design_hours"] = 8.0
+    kwargs["design_rate_per_hour"] = 5000.0
+
+    core_result = calculate_cost(CostInputs(**kwargs))
+    cura_result = cura_module.PrintTallyCostCalculator._calculate_cost(**kwargs)
+
+    assert cura_result["design_cost"] == 0.0
+    assert core_result.design_cost == 0.0
+    assert cura_result["final_price"] == core_result.final_price
 
 
 def test_cura_script_rejects_same_invalid_inputs_as_core(cura_module):
@@ -111,6 +132,7 @@ def test_cura_script_rejects_same_invalid_inputs_as_core(cura_module):
     for field, bad_value in [
         ("model_weight_g", -1.0), ("price_per_kg", -1.0), ("print_hours", -1.0),
         ("waste_pct", 1.5), ("marketing_fee_pct", -0.1), ("profit_margin_pct", -0.05),
+        ("design_hours", -1.0), ("design_rate_per_hour", -1.0),
     ]:
         kwargs = dict(base)
         kwargs[field] = bad_value
