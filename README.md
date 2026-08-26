@@ -4,11 +4,11 @@ A print-cost calculator for Ultimaker Cura and OrcaSlicer/PrusaSlicer, built aro
 
 ## Why this isn't one plugin ported twice
 
-OrcaSlicer and PrusaSlicer have no public plugin API for custom UI — confirmed directly by an OrcaSlicer maintainer-side discussion, not assumed. Cura does have a real plugin SDK (a documented `Script` base class for post-processing scripts). So this is one shared cost formula with two genuinely different front ends:
+OrcaSlicer and PrusaSlicer have no public plugin API for custom UI — confirmed directly by an OrcaSlicer maintainer-side discussion, not assumed. Cura does have a real plugin SDK, with real Extension/QML support for a proper GUI. So this is one shared cost formula with two genuinely different front ends:
 
-- **`cura_plugin/`** — a real Cura post-processing script. Install it, set your rates once in its settings panel, and every G-code export gets a cost breakdown appended automatically, using Cura's own real print-weight and print-time data (no G-code parsing needed on this side).
+- **`cura_plugin/PrintTally/`** — a real Cura plugin (Extension), not a post-processing script. It adds a **PrintTally** entry to Cura's Extensions menu with a Settings dialog (your rates, persisted in Cura's own preferences) and a live price readout next to the Save-to-Disk button, using Cura's own real print-weight and print-time data as soon as you slice.
 - **`orca_prusa_script/`** — a standalone Python script configured as an OrcaSlicer/PrusaSlicer post-processing script (Print Settings → Output options → Post-processing scripts). It reads the slicer's own G-code footer (filament weight, estimated print time — the exact comment format was confirmed directly against OrcaSlicer's source, not guessed) and runs the same formula.
-- **`core/cost_model.py`** — the one place the actual math lives, fully unit-tested. The Cura script duplicates this formula (Cura scripts are distributed as single self-contained files, so it can't import a sibling module) but a fuzz test (`tests/test_cura_script_matches_core.py`) checks both implementations against 50 random inputs every time either changes, so they can't silently drift apart.
+- **`core/cost_model.py`** — the one place the actual math lives, fully unit-tested. `cura_plugin/PrintTally/PrintTally/cost_model.py` is a byte-for-byte copy of it (a Cura plugin folder isn't on the same Python path as the repo root once installed, so it can't import the sibling module directly) — `tests/test_plugin_cost_model_matches_core.py` diffs the two files below the docstring on every change, so they can't silently drift apart.
 
 ## The formula
 
@@ -32,7 +32,10 @@ One judgment call worth flagging: the source material describes maintenance cost
 
 ## Installing the Cura plugin
 
-Copy `cura_plugin/PrintTallyCostCalculator.py` into your Cura scripts folder (Help → Show Configuration Folder → `scripts/`), restart Cura, then add it from Extensions → Post Processing → Modify G-Code → Add a script.
+Copy `cura_plugin/PrintTally/PrintTally/` into your Cura plugins folder (Help → Show Configuration Folder → `plugins/PrintTally/PrintTally/`, so `plugin.json` ends up double-nested the way Cura expects) and restart Cura. You'll get a **PrintTally** entry under the Extensions menu:
+
+- **Extensions → PrintTally → Settings…** — set your rates once (material, machine, electricity, waste %, labor, design cost toggle, packaging/shipping/marketing, profit margin). Saved in Cura's own preferences.
+- Slice a model and a live price shows up next to the Save-to-Disk button, pulling Cura's own real weight/print-time estimate. Hover it for the full breakdown, click it to reopen Settings.
 
 ## Using the OrcaSlicer/PrusaSlicer script
 
@@ -53,8 +56,8 @@ python3 -m venv .venv && .venv/bin/pip install pytest
 .venv/bin/python -m pytest tests/ -v
 ```
 
-31 tests: the core formula (unit tests, the design-cost toggle's critical on/off edge case, plus one hand-verified realistic scenario), the OrcaSlicer/PrusaSlicer script (against a footer shaped exactly like OrcaSlicer's real source output, plus error-path tests for a missing weight/time footer and the design-cost flag), and the Cura-script-vs-core parity fuzz test (including the toggle-off case specifically).
+29 tests: the core formula (unit tests, the design-cost toggle's critical on/off edge case, plus one hand-verified realistic scenario), the OrcaSlicer/PrusaSlicer script (against a footer shaped exactly like OrcaSlicer's real source output, plus error-path tests for a missing weight/time footer and the design-cost flag), and the Cura-plugin-vs-core cost-model parity check.
 
 ## Status
 
-Core formula and both adapters built and tested (2026-08-18), extended with a seventh factor (design cost, checkbox-gated) the same day. The Cura plugin has been confirmed to load cleanly in a real Cura 5.13 installation with no exceptions, both before and after the design-cost addition. Not yet verified against a real OrcaSlicer CLI slice end-to-end (the CLI slicing in this dev environment needs a properly-typed printer/process profile pair that wasn't readily available — the footer-parsing logic is instead verified against OrcaSlicer's actual source code strings). If you hit a parsing error against a real slice, the exact real footer line is the thing to check first.
+Core formula and both adapters built and tested (2026-08-18), extended with a seventh factor (design cost, checkbox-gated) the same day. Rebuilt as a real Cura Extension plugin with a settings dialog and live price widget (2026-08-26), replacing the earlier post-processing-script approach — confirmed working end-to-end in a real Cura 5.13 installation, including catching and fixing two real QML bugs (`UM.ToolTip` needing the `UM 1.5` import, and `UM.Dialog`'s default `contents` property rejecting a non-visual `I18nCatalog` child) via Cura's own log, not guesswork. Not yet verified against a real OrcaSlicer CLI slice end-to-end (the CLI slicing in this dev environment needs a properly-typed printer/process profile pair that wasn't readily available — the footer-parsing logic is instead verified against OrcaSlicer's actual source code strings). If you hit a parsing error against a real slice, the exact real footer line is the thing to check first.
