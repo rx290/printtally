@@ -21,9 +21,15 @@ custom job should:
                          are set to. This is a real on/off switch, not just a
                          rate you have to remember to zero out.
   7. Selling costs     = packaging_cost + shipping_cost + (marketing_fee_pct * subtotal)
-  Profit margin        = margin_pct * (sum of 1-7)
+  8. Parts            = hardware_cost (lights, switch, plug, cable, magnets, screws: the bill of
+                         materials, priced from parts.json by core/parts.py)
+  9. Royalty           = royalty_fixed per sale + royalty_pct of the final selling price
+                         (licensed designs; 0 for your own designs)
+  Profit margin        = margin_pct * (sum of 1-8 + fixed royalty)
 
-Final price = (1-7) + profit margin
+Final price = (1-8 + fixed royalty + margin) / (1 - royalty_pct)
+Cost to make = material + machine + electricity + waste + parts: what one print costs you, shown for
+every print, prototypes included.
 """
 
 from dataclasses import dataclass, field
@@ -68,6 +74,13 @@ class CostInputs:
     # Profit margin, applied last, on top of everything above
     profit_margin_pct: float = 0.25          # video's stated range: 20-30%
 
+    # 8. Parts: electronics and hardware (bill of materials total)
+    hardware_cost: float = 0.0
+
+    # 9. Royalty for licensed designs: fixed per sale and/or a share of the selling price
+    royalty_fixed: float = 0.0
+    royalty_pct: float = 0.0
+
 
 @dataclass
 class CostBreakdown:
@@ -81,6 +94,9 @@ class CostBreakdown:
     subtotal: float
     profit_margin: float
     final_price: float
+    hardware_cost: float = 0.0
+    royalty_cost: float = 0.0
+    cost_to_make: float = 0.0
 
 
 def calculate_cost(inputs: CostInputs) -> CostBreakdown:
@@ -100,6 +116,10 @@ def calculate_cost(inputs: CostInputs) -> CostBreakdown:
         raise ValueError("design_hours cannot be negative")
     if inputs.design_rate_per_hour < 0:
         raise ValueError("design_rate_per_hour cannot be negative")
+    if inputs.hardware_cost < 0 or inputs.royalty_fixed < 0:
+        raise ValueError("hardware_cost and royalty_fixed cannot be negative")
+    if not (0 <= inputs.royalty_pct < 1):
+        raise ValueError("royalty_pct must be at least 0 and below 1 (e.g. 0.1 for 10%)")
 
     material_cost = inputs.model_weight_g * (inputs.price_per_kg / 1000.0)
     machine_cost = inputs.machine_rate_per_hour * inputs.print_hours
@@ -126,16 +146,22 @@ def calculate_cost(inputs: CostInputs) -> CostBreakdown:
     pre_marketing_subtotal = (
         production_subtotal
         + waste_maintenance_cost
+        + inputs.hardware_cost
         + post_processing_cost
         + design_cost
         + selling_cost_fixed
+        + inputs.royalty_fixed
     )
     marketing_fee = inputs.marketing_fee_pct * pre_marketing_subtotal
     selling_cost = selling_cost_fixed + marketing_fee
 
     subtotal = pre_marketing_subtotal + marketing_fee
     profit_margin = inputs.profit_margin_pct * subtotal
-    final_price = subtotal + profit_margin
+    # A royalty that is a share of the selling price is paid out of that price: gross it up so the
+    # margin is still what was asked for after the designer's share.
+    final_price = (subtotal + profit_margin) / (1.0 - inputs.royalty_pct)
+    royalty_cost = inputs.royalty_fixed + inputs.royalty_pct * final_price
+    cost_to_make = production_subtotal + waste_maintenance_cost + inputs.hardware_cost
 
     return CostBreakdown(
         material_cost=round(material_cost, 2),
@@ -148,6 +174,9 @@ def calculate_cost(inputs: CostInputs) -> CostBreakdown:
         subtotal=round(subtotal, 2),
         profit_margin=round(profit_margin, 2),
         final_price=round(final_price, 2),
+        hardware_cost=round(inputs.hardware_cost, 2),
+        royalty_cost=round(royalty_cost, 2),
+        cost_to_make=round(cost_to_make, 2),
     )
 
 
@@ -160,11 +189,14 @@ def format_breakdown(breakdown: CostBreakdown, currency: str = "") -> str:
         f"Printing cost:          {money(breakdown.machine_cost)}",
         f"Electricity cost:       {money(breakdown.electricity_cost)}",
         f"Maintenance cost:       {money(breakdown.waste_maintenance_cost)}",
+        f"Parts cost:             {money(breakdown.hardware_cost)}",
         f"Labor cost:             {money(breakdown.post_processing_cost)}",
         f"Design cost:            {money(breakdown.design_cost)}",
         f"Selling costs:          {money(breakdown.selling_cost)}",
+        f"Royalty:                {money(breakdown.royalty_cost)}",
         f"Subtotal:               {money(breakdown.subtotal)}",
         f"Profit margin:          {money(breakdown.profit_margin)}",
         f"FINAL PRICE:            {money(breakdown.final_price)}",
+        f"Cost to make (1 print): {money(breakdown.cost_to_make)}",
     ]
     return "\n".join(lines)
