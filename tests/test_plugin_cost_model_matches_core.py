@@ -32,3 +32,9 @@ def test_plugin_cost_model_code_matches_core_below_docstring():
         "core/cost_model.py -- copy core's file over it (keeping the plugin "
         "copy's own docstring) and re-run tests."
     )
+
+
+def test_plugin_shop_code_matches_core_below_docstring():
+    core = (REPO_ROOT / "core" / "shop.py").read_text().split(SPLIT_MARKER, 1)[1]
+    plugin = (REPO_ROOT / "cura_plugin" / "PrintTally" / "PrintTally" / "shop.py").read_text().split(SPLIT_MARKER, 1)[1]
+    assert core == plugin, "re-copy core/shop.py into the plugin (below its docstring)"

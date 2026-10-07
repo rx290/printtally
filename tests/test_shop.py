@@ -127,3 +127,22 @@ def test_unnamed_material_tells_you_where_to_set_it(lib):
 def test_not_gcode_is_refused_clearly():
     with pytest.raises(ValueError, match="filament and time"):
         gcode_stats.parse("G1 X1\nG1 Y2\n")
+
+
+def test_price_from_slicer_uses_names_preferences_and_plugin_fallback(tmp_path):
+    cfg = tmp_path / "cfg"
+    cfg.mkdir()
+    (cfg / "materials.json").write_text(json.dumps({"PETG": {"price_per_kg": 2250}}))
+    (cfg / "parts.json").write_text(json.dumps({"dob_5w": {"price": 180}}))
+    model_dir = tmp_path / "Lamps"
+    model_dir.mkdir()
+    (model_dir / "printtally.json").write_text(json.dumps({"bom": [{"part": "dob_5w"}], "stage": "selling"}))
+    model = model_dir / "dome.stl"
+    model.write_text("x")
+    job = shop.price_from_slicer([100.0, 10.0], ["Generic PETG", "Generic PLA"], 2.0, model,
+                                 {"price_per_kg": 3000, "electricity_rate_per_kwh": 40}, directory=cfg)
+    costs = {n: c for n, _, c in job.material_lines}
+    assert costs["PETG"] == pytest.approx(225.0)          # your materials.json price
+    assert costs["PLA"] == pytest.approx(30.0)            # not priced yet: the plugin's price per kg
+    assert job.breakdown.hardware_cost == pytest.approx(180.0) and job.stage == "selling"
+    assert not any("Electricity rate not set" in w for w in job.warnings)

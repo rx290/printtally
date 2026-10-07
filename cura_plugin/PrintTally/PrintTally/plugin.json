@@ -1,7 +1,7 @@
 {
     "name": "PrintTally",
     "author": "Muhammad Asad Waseem",
-    "version": "0.2.0",
+    "version": "0.3.0",
     "description": "Live print-cost calculator: set your rates once, get a real price breakdown for every model you load.",
     "api": 8,
     "supported_sdk_versions": ["8.12.0"],

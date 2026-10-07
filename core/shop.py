@@ -240,3 +240,31 @@ def format_job(job: JobPrice) -> str:
             f"Selling price: {money(b.final_price)}" + ("" if job.sellable else "  (not for sale)")]
     out += [f"! {w}" for w in job.warnings]
     return "\n".join(out)
+
+
+def price_from_slicer(weights_g: list, names: list, print_hours: float, model_path=None,
+                      plugin_settings: dict | None = None, directory: Path | None = None) -> JobPrice:
+    """What a slicer plugin calls: grams and material names per extruder, the print time and the loaded
+    model's file (for its printtally.json preferences). The plugin's own settings fill in shop rates and
+    act as the price for any material your materials.json has not priced yet."""
+    plugin_settings = dict(plugin_settings or {})
+    materials = load_materials(directory)
+    fallback = float(plugin_settings.get("price_per_kg", 0) or 0)
+    if fallback > 0:
+        for m in materials.values():
+            if m.price_per_kg <= 0:
+                m.price_per_kg = fallback
+    settings = {**DEFAULT_SETTINGS,
+                **{k: v for k, v in plugin_settings.items() if k in DEFAULT_SETTINGS or k.endswith("_rate_per_hour")
+                   or k in ("marketing_fee_pct",)},
+                **_read_json((directory or config_dir()) / "settings.json", {})}
+    prefs, _used = find_preferences(model_path) if model_path else ({}, [])
+    for key in ("packaging_cost", "shipping_cost", "post_processing_hours", "include_design_cost", "design_hours"):
+        if key in plugin_settings and key not in prefs:
+            prefs[key] = plugin_settings[key]
+    grams = {}
+    for i, g in enumerate(weights_g or []):
+        if g and g > 0:
+            name = names[i] if i < len(names or []) else ""
+            grams[name] = grams.get(name, 0.0) + float(g)
+    return price_job(grams, print_hours, prefs, settings, materials, load_parts(directory))

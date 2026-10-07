@@ -18,6 +18,7 @@ from UM.PluginRegistry import PluginRegistry
 from UM.i18n import i18nCatalog
 
 from .cost_model import CostInputs, calculate_cost, format_breakdown
+from . import shop
 
 catalog = i18nCatalog("cura")
 
@@ -50,6 +51,7 @@ class PrintTallyExtension(QObject, Extension):
         super().__init__()
         self._app = app
         self._breakdown = None
+        self._job = None
         self._settings_dialog = None
 
         self._preferences = self._app.getPreferences()
@@ -88,27 +90,13 @@ class PrintTallyExtension(QObject, Extension):
                 print_hours = int(current_print_time) / 3600.0
                 has_estimate = weight_g > 0.0
 
+        self._job = None
         if has_estimate:
             try:
-                inputs = CostInputs(
-                    model_weight_g=weight_g,
-                    print_hours=print_hours,
-                    price_per_kg=settings["price_per_kg"],
-                    machine_rate_per_hour=settings["machine_rate_per_hour"],
-                    printer_watts=settings["printer_watts"],
-                    electricity_rate_per_kwh=settings["electricity_rate_per_kwh"],
-                    waste_pct=settings["waste_pct"],
-                    post_processing_hours=settings["post_processing_hours"],
-                    post_processing_rate_per_hour=settings["post_processing_rate_per_hour"],
-                    include_design_cost=settings["include_design_cost"],
-                    design_hours=settings["design_hours"],
-                    design_rate_per_hour=settings["design_rate_per_hour"],
-                    packaging_cost=settings["packaging_cost"],
-                    shipping_cost=settings["shipping_cost"],
-                    marketing_fee_pct=settings["marketing_fee_pct"],
-                    profit_margin_pct=settings["profit_margin_pct"],
-                )
-                self._breakdown = calculate_cost(inputs)
+                names = list(getattr(print_information, "materialNames", []) or [])
+                self._job = shop.price_from_slicer(list(print_information.materialWeights), names, print_hours,
+                                                   self._modelPath(), settings)
+                self._breakdown = self._job.breakdown
             except ValueError as e:
                 Logger.log("w", f"PrintTally: invalid settings, can't price this print: {e}")
                 self._breakdown = None
@@ -118,6 +106,18 @@ class PrintTallyExtension(QObject, Extension):
         self.hasEstimateChanged.emit()
         self.finalPriceChanged.emit()
         self.breakdownTextChanged.emit()
+
+    def _modelPath(self):
+        """The file of the first model on the build plate: its printtally.json preferences apply."""
+        try:
+            from UM.Scene.Iterator.DepthFirstIterator import DepthFirstIterator
+            for node in DepthFirstIterator(self._app.getController().getScene().getRoot()):
+                mesh = node.getMeshData() if hasattr(node, "getMeshData") else None
+                if mesh is not None and node.callDecoration("isSliceable") and mesh.getFileName():
+                    return mesh.getFileName()
+        except Exception as e:  # noqa: BLE001 - a missing path only means no preference files
+            Logger.log("w", f"PrintTally: could not read the model's file name: {e}")
+        return None
 
     # ------------------------------------------------------- live widget
 
@@ -155,6 +155,10 @@ class PrintTallyExtension(QObject, Extension):
         if not self._breakdown:
             return catalog.i18nc("@info", "Slice a model to see a price here.")
         currency = self._app.getPreferences().getValue("cura/currency") or ""
+        if getattr(self, "_job", None) is not None:
+            if not self._job.currency:
+                self._job.currency = currency
+            return shop.format_job(self._job) + "\n\n" + format_breakdown(self._breakdown, currency)
         return format_breakdown(self._breakdown, currency)
 
     # ----------------------------------------------------- settings dialog
