@@ -155,3 +155,13 @@ def test_filament_profile_overrides_slicer_names(tmp_path):
     auto = shop.price_from_slicer([100.0], ["Generic ABS"], 1.0, None, {}, tmp_path)
     picked = shop.price_from_slicer([100.0], ["Generic ABS"], 1.0, None, {"filament_profile": "PETG A-grade"}, tmp_path)
     assert auto.breakdown.material_cost == 400.0 and picked.breakdown.material_cost == 350.0
+
+
+def test_weigh_factor_scales_grams(tmp_path):
+    import json
+    from core.shop import load_materials, price_job
+    (tmp_path / "materials.json").write_text(json.dumps({"PETG": {"price_per_kg": 3000, "weigh_factor": 1.1}}))
+    mats = load_materials(tmp_path)
+    assert mats["PETG"].weigh_factor == 1.1 and mats["PLA"].weigh_factor == 1.0
+    job = price_job({"PETG": 100.0}, 1.0, {}, materials=mats, parts={})
+    assert abs(job.material_lines[0][1] - 110.0) < 1e-6 and abs(job.material_lines[0][2] - 330.0) < 1e-6

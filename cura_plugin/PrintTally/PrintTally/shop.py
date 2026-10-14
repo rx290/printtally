@@ -50,6 +50,7 @@ class Material:
     price_per_kg: float = 0.0          # 0 = not set yet: reported, never guessed
     density_g_cm3: float = 1.24
     aliases: list = field(default_factory=list)
+    weigh_factor: float = 1.0          # scale grams / slicer grams, from printkit weigh (1 = trust the slicer)
 
 
 def load_materials(directory: Path | None = None) -> dict:
@@ -60,7 +61,8 @@ def load_materials(directory: Path | None = None) -> dict:
         base = lib.get(name, Material(name))
         lib[name] = Material(name, float(spec.get("price_per_kg", base.price_per_kg)),
                              float(spec.get("density_g_cm3", base.density_g_cm3)),
-                             [a.lower() for a in spec.get("aliases", base.aliases)])
+                             [a.lower() for a in spec.get("aliases", base.aliases)],
+                             float(spec.get("weigh_factor", base.weigh_factor)) or 1.0)
     return lib
 
 
@@ -165,6 +167,7 @@ def price_job(grams_by_material: dict, print_hours: float, prefs: dict | None = 
         if m.price_per_kg <= 0:
             warnings.append(f"No price for {m.name} yet: set price_per_kg in materials.json; "
                             f"{grams:.0f} g left out of the price.")
+        grams = grams * m.weigh_factor          # what the scale says this filament really uses
         cost = grams * m.price_per_kg / 1000.0
         material_cost += cost
         grams_total += grams
