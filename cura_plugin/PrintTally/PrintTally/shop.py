@@ -91,6 +91,12 @@ def grams_from_length(length_m: float, material: Material, diameter_mm: float = 
 
 
 # ---------------------------------------------------------------------- parts
+def load_inventory(directory: Path | None = None) -> dict:
+    """{material name: {"stock_g", "reorder_at_g"}} from inventory.json (written by sync-sheet --inventory)."""
+    raw = _read_json((directory or config_dir()) / "inventory.json", {})
+    return raw if isinstance(raw, dict) else {}
+
+
 def load_parts(directory: Path | None = None) -> dict:
     """{part name: price per unit} from parts.json (empty until you add your parts)."""
     raw = _read_json((directory or config_dir()) / "parts.json", {})
@@ -143,13 +149,15 @@ class JobPrice:
 
 
 def price_job(grams_by_material: dict, print_hours: float, prefs: dict | None = None,
-              settings: dict | None = None, materials: dict | None = None, parts: dict | None = None) -> JobPrice:
+              settings: dict | None = None, materials: dict | None = None, parts: dict | None = None,
+              inventory: dict | None = None) -> JobPrice:
     """Price one job. grams_by_material: what the slicer reported, {slicer material name: grams}
     (an unnamed material comes in as "" and takes the preference file's material)."""
     prefs = dict(prefs or {})
     s = {**DEFAULT_SETTINGS, **(settings or {}), **prefs.get("settings", {})}
     materials = materials if materials is not None else load_materials()
     parts = parts if parts is not None else load_parts()
+    inventory = inventory if inventory is not None else load_inventory()
     warnings, mlines = [], []
     material_cost, grams_total = 0.0, 0.0
     for name, grams in grams_by_material.items():
@@ -168,6 +176,13 @@ def price_job(grams_by_material: dict, print_hours: float, prefs: dict | None = 
             warnings.append(f"No price for {m.name} yet: set price_per_kg in materials.json; "
                             f"{grams:.0f} g left out of the price.")
         grams = grams * m.weigh_factor          # what the scale says this filament really uses
+        have = inventory.get(m.name) if isinstance(inventory.get(m.name), dict) else None
+        if have and "stock_g" in have:
+            left = float(have["stock_g"]) - grams
+            if left < 0:
+                warnings.append(f"Only {float(have['stock_g']):.0f} g of {m.name} in stock; this job needs {grams:.0f} g.")
+            elif left < float(have.get("reorder_at_g", 0) or 0):
+                warnings.append(f"{m.name} drops to {left:.0f} g after this job: below its reorder level.")
         cost = grams * m.price_per_kg / 1000.0
         material_cost += cost
         grams_total += grams

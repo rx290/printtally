@@ -137,3 +137,40 @@ def sync_sheet(url=None, directory=None, today=None):
     temporary.write_text(text, encoding="utf-8")
     temporary.replace(cache)
     return messages or ["No price changes."]
+
+
+def sync_inventory(url=None, directory=None):
+    """Filament stock from a second published CSV (material, color, stock_g, reorder_at_g) into inventory.json,
+    summed per material across colours. Offline: the last cached copy. Returns printable lines."""
+    directory = directory or config_dir()
+    settings = _json(directory / "settings.json")
+    url = url or settings.get("inventory_csv_url")
+    if not url:
+        return []
+    cache, messages = directory / "inventory_cache.csv", []
+    try:
+        text = download(url)
+    except (OSError, HTTPException) as exc:
+        if not cache.exists():
+            return [f"Inventory download failed and no cached copy exists: {exc}"]
+        text = cache.read_text(encoding="utf-8")
+        messages.append(f"Inventory download failed ({exc}); using cached copy")
+    reader = csv.DictReader(io.StringIO(text.lstrip("﻿")))
+    reader.fieldnames = [h.strip().lower() for h in (reader.fieldnames or [])]
+    if not {"material", "stock_g"}.issubset(reader.fieldnames):
+        raise ValueError("Inventory CSV needs at least the columns material and stock_g")
+    stock = {}
+    for row in reader:
+        name = (row.get("material") or "").strip()
+        if not name or not (row.get("stock_g") or "").strip():
+            continue
+        entry = stock.setdefault(name, {"stock_g": 0.0, "reorder_at_g": 0.0})
+        entry["stock_g"] += _number(row["stock_g"])
+        if (row.get("reorder_at_g") or "").strip():
+            entry["reorder_at_g"] += _number(row["reorder_at_g"])
+    directory.mkdir(parents=True, exist_ok=True)
+    _write_json(directory / "inventory.json", stock)
+    settings["inventory_csv_url"] = url
+    _write_json(directory / "settings.json", settings)
+    cache.write_text(text, encoding="utf-8")
+    return messages + [f"{n}: {v['stock_g']:.0f} g in stock" for n, v in sorted(stock.items())]

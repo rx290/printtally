@@ -88,3 +88,6 @@ optional cells preserve local fields, and unlisted local entries stay intact.
 Network failures use `sheet_cache.csv` with a message. Every distinct dated price,
 including future prices and revisions, is retained in `price_history.csv`.
 Files live in `~/.config/printtally`, or `$PRINTTALLY_CONFIG` when set.
+
+
+**Inventory.** Publish the Inventory tab too (columns `material, color, stock_g, reorder_at_g`) and run `printtally sync-sheet --inventory <CSV link>`. Stock is summed per material; a job that needs more filament than you have, or drops below the reorder level, gets a warning in the price and in Cura.

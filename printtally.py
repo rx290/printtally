@@ -53,7 +53,10 @@ def cmd_price(args):
 
 
 def cmd_sync_sheet(args):
-    for message in sheet_sync.sync_sheet(args.url):
+    if args.url or not args.inventory:
+        for message in sheet_sync.sync_sheet(args.url):
+            print(message)
+    for message in sheet_sync.sync_inventory(args.inventory):
         print(message)
 
 
@@ -75,6 +78,7 @@ def main(argv=None):
     sub.add_parser("init", help="write starter config files").set_defaults(func=cmd_init)
     p = sub.add_parser("sync-sheet", help="sync prices from a published Google Sheet CSV")
     p.add_argument("url", nargs="?", metavar="URL", help="published CSV URL (saved for later syncs)")
+    p.add_argument("--inventory", metavar="URL", help="published Inventory tab CSV URL (saved for later syncs)")
     p.set_defaults(func=cmd_sync_sheet)
     p = sub.add_parser("price-history", help="show a material or part's dated prices")
     p.add_argument("name", metavar="NAME")

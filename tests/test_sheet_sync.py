@@ -110,3 +110,22 @@ def test_download_timeout(monkeypatch):
         return Response()
     monkeypatch.setattr(sheet_sync, "urlopen", open_url)
     assert sheet_sync.download("url") == CSV
+
+
+def test_inventory_sync_and_stock_warnings(tmp_path, monkeypatch):
+    from core import sheet_sync
+    from core.shop import load_materials, price_job, load_inventory
+    csv_text = "material,color,stock_g,reorder_at_g\nPETG,black,600,200\nPETG,white,400,100\nPLA,red,,\n"
+    monkeypatch.setattr(sheet_sync, "download", lambda url: csv_text)
+    out = sheet_sync.sync_inventory("https://example/inv.csv", tmp_path)
+    assert "PETG: 1000 g in stock" in out
+    inv = load_inventory(tmp_path)
+    assert inv["PETG"] == {"stock_g": 1000.0, "reorder_at_g": 300.0} and "PLA" not in inv
+    (tmp_path / "materials.json").write_text('{"PETG": {"price_per_kg": 3000}}')
+    mats = load_materials(tmp_path)
+    w = price_job({"PETG": 1200.0}, 1.0, {}, materials=mats, parts={}, inventory=inv).warnings
+    assert any("Only 1000 g of PETG" in x for x in w)
+    w = price_job({"PETG": 800.0}, 1.0, {}, materials=mats, parts={}, inventory=inv).warnings
+    assert any("below its reorder level" in x for x in w)
+    monkeypatch.setattr(sheet_sync, "download", lambda url: (_ for _ in ()).throw(OSError("offline")))
+    assert any("cached copy" in m for m in sheet_sync.sync_inventory(None, tmp_path))
