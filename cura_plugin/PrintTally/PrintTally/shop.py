@@ -247,9 +247,13 @@ def price_from_slicer(weights_g: list, names: list, print_hours: float, model_pa
     for key in ("packaging_cost", "shipping_cost", "post_processing_hours", "include_design_cost", "design_hours"):
         if key in plugin_settings and key not in prefs:
             prefs[key] = plugin_settings[key]
+    # a filament profile picked in the plugin (PETG A-grade, ABS...) overrides the slicer's material names
+    chosen = str(plugin_settings.get("filament_profile", "") or "")
     grams = {}
     for i, g in enumerate(weights_g or []):
         if g and g > 0:
             name = names[i] if i < len(names or []) else ""
+            if chosen in materials:
+                name = chosen
             grams[name] = grams.get(name, 0.0) + float(g)
     return price_job(grams, print_hours, prefs, settings, materials, load_parts(directory))

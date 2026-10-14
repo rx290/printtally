@@ -146,3 +146,12 @@ def test_price_from_slicer_uses_names_preferences_and_plugin_fallback(tmp_path):
     assert costs["PLA"] == pytest.approx(30.0)            # not priced yet: the plugin's price per kg
     assert job.breakdown.hardware_cost == pytest.approx(180.0) and job.stage == "selling"
     assert not any("Electricity rate not set" in w for w in job.warnings)
+
+
+def test_filament_profile_overrides_slicer_names(tmp_path):
+    (tmp_path / "materials.json").write_text(json.dumps({
+        "PETG A-grade": {"price_per_kg": 3500, "density_g_cm3": 1.27, "aliases": ["petg a"]},
+        "ABS": {"price_per_kg": 4000, "density_g_cm3": 1.04, "aliases": ["abs"]}}))
+    auto = shop.price_from_slicer([100.0], ["Generic ABS"], 1.0, None, {}, tmp_path)
+    picked = shop.price_from_slicer([100.0], ["Generic ABS"], 1.0, None, {"filament_profile": "PETG A-grade"}, tmp_path)
+    assert auto.breakdown.material_cost == 400.0 and picked.breakdown.material_cost == 350.0

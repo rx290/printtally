@@ -25,6 +25,10 @@ UM.Dialog
     {
         var s = JSON.parse(manager.settingsJson)
         pricePerKg.valueText = String(s.price_per_kg)
+        var profiles = JSON.parse(manager.filamentProfilesJson)
+        filamentProfile.model = profiles
+        var idx = profiles.indexOf(s.filament_profile || "")
+        filamentProfile.currentIndex = idx > 0 ? idx : 0
         machineRate.valueText = String(s.machine_rate_per_hour)
         printerWatts.valueText = String(s.printer_watts)
         electricityRate.valueText = String(s.electricity_rate_per_kwh)
@@ -44,6 +48,7 @@ UM.Dialog
     {
         var s = {
             price_per_kg: parseFloat(pricePerKg.valueText) || 0,
+            filament_profile: filamentProfile.currentIndex > 0 ? filamentProfile.currentText : "",
             machine_rate_per_hour: parseFloat(machineRate.valueText) || 0,
             printer_watts: parseFloat(printerWatts.valueText) || 0,
             electricity_rate_per_kwh: parseFloat(electricityRate.valueText) || 0,
@@ -94,6 +99,12 @@ UM.Dialog
             spacing: UM.Theme.getSize("default_margin").height
 
             UM.Label { text: catalog.i18nc("@label", "Material"); font: UM.Theme.getFont("default_bold") }
+            Row
+            {
+                width: parent.width
+                UM.Label { text: catalog.i18nc("@label", "Filament profile"); width: base.labelWidth; anchors.verticalCenter: parent.verticalCenter }
+                ComboBox { id: filamentProfile; width: base.controlWidth; model: [] }
+            }
             Cura.NumericTextFieldWithUnit
             {
                 id: pricePerKg

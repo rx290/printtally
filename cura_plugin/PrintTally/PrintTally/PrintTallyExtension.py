@@ -30,6 +30,7 @@ SETTINGS_PREFERENCE = "printtally/settings"
 # zero rather than guessing a number that would look official but isn't.
 DEFAULT_SETTINGS = {
     "price_per_kg": 2500.0,
+    "filament_profile": "",           # "" = from Cura's material names; else a materials.json profile
     "machine_rate_per_hour": 40.0,
     "printer_watts": 250.0,
     "electricity_rate_per_kwh": 0.0,
@@ -180,6 +181,15 @@ class PrintTallyExtension(QObject, Extension):
     @pyqtProperty(str, notify=settingsChanged)
     def settingsJson(self) -> str:
         return json.dumps(self._loadSettings())
+
+    @pyqtProperty(str, notify=settingsChanged)
+    def filamentProfilesJson(self) -> str:
+        """["Auto (from Cura)", profile names from materials.json...] for the settings dropdown."""
+        try:
+            names = sorted(shop.load_materials().keys())
+        except Exception:
+            names = []
+        return json.dumps(["Auto (from Cura)"] + names)
 
     @pyqtSlot(str)
     def saveSettingsJson(self, settings_json: str) -> None:
