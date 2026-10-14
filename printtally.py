@@ -15,7 +15,7 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from core import shop, gcode_stats  # noqa: E402
+from core import shop, gcode_stats, sheet_sync  # noqa: E402
 
 TEMPLATES = {
     "materials.json": {name: {"price_per_kg": 0, "density_g_cm3": d, "aliases": a}
@@ -52,6 +52,19 @@ def cmd_price(args):
     print(shop.format_job(job))
 
 
+def cmd_sync_sheet(args):
+    for message in sheet_sync.sync_sheet(args.url):
+        print(message)
+
+
+def cmd_price_history(args):
+    rows = sheet_sync.price_history(args.name)
+    for row in rows:
+        print(f"{row['date']} {row['kind']} {row['name']}: {row['price']} (synced {row['synced_at']})")
+    if not rows:
+        print(f"No price history for {args.name}.")
+
+
 def main(argv=None):
     ap = argparse.ArgumentParser(prog="printtally")
     sub = ap.add_subparsers(dest="cmd", required=True)
@@ -60,8 +73,17 @@ def main(argv=None):
     p.add_argument("--model", help="the model file whose printtally.json preferences apply")
     p.set_defaults(func=cmd_price)
     sub.add_parser("init", help="write starter config files").set_defaults(func=cmd_init)
+    p = sub.add_parser("sync-sheet", help="sync prices from a published Google Sheet CSV")
+    p.add_argument("url", nargs="?", metavar="URL", help="published CSV URL (saved for later syncs)")
+    p.set_defaults(func=cmd_sync_sheet)
+    p = sub.add_parser("price-history", help="show a material or part's dated prices")
+    p.add_argument("name", metavar="NAME")
+    p.set_defaults(func=cmd_price_history)
     args = ap.parse_args(argv)
-    args.func(args)
+    try:
+        args.func(args)
+    except (OSError, ValueError) as exc:
+        ap.exit(1, f"Error: {exc}\n")
 
 
 if __name__ == "__main__":
