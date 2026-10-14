@@ -64,3 +64,27 @@ Core formula and both adapters built and tested (2026-08-18), extended with a se
 
 ### Real grams (weigh_factor)
 Set `"weigh_factor": 1.07` on a material in materials.json (or let printkit write it: `python -m printkit weigh --material PETG --slicer 120 --scale 128`) and PrintTally prices that filament at slicer grams x the factor.
+
+## Prices from a Google Sheet
+
+I keep dated prices in a sheet with these headers (case-insensitive): `date`
+(`YYYY-MM-DD`), `kind` (`material` or `part`), `name`, `price` (per kg for
+materials, per unit for parts). Optional columns: `density_g_cm3`,
+`weigh_factor`, `aliases` (semicolon separated), `notes`.
+
+In Google Sheets, choose **File > Share > Publish to web**, select the sheet
+and **Comma-separated values (.csv)**, then click **Publish** and copy the URL.
+Publishing makes the sheet public. Run:
+
+```sh
+python3 printtally.py sync-sheet 'https://docs.google.com/spreadsheets/d/e/.../pub?gid=0&single=true&output=csv'
+python3 printtally.py sync-sheet
+python3 printtally.py price-history 'PLA'
+```
+
+The URL is saved in `settings.json`; supplying another URL replaces it. The latest
+date on or before today supplies each price (last row wins a date tie). Blank
+optional cells preserve local fields, and unlisted local entries stay intact.
+Network failures use `sheet_cache.csv` with a message. Every distinct dated price,
+including future prices and revisions, is retained in `price_history.csv`.
+Files live in `~/.config/printtally`, or `$PRINTTALLY_CONFIG` when set.
