@@ -28,6 +28,9 @@ def _write_json(path, data):
 
 
 def _number(value):
+    """A non-negative number; accepts what a published Google Sheet writes ("Rs 3,500", "1,200 g")."""
+    if isinstance(value, str):
+        value = value.replace(",", "").replace("Rs", "").replace("PKR", "").replace("g", "").strip()
     number = float(value)
     if not math.isfinite(number) or number < 0:
         raise ValueError(f"Invalid nonnegative number: {value!r}")

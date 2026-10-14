@@ -129,3 +129,8 @@ def test_inventory_sync_and_stock_warnings(tmp_path, monkeypatch):
     assert any("below its reorder level" in x for x in w)
     monkeypatch.setattr(sheet_sync, "download", lambda url: (_ for _ in ()).throw(OSError("offline")))
     assert any("cached copy" in m for m in sheet_sync.sync_inventory(None, tmp_path))
+
+
+def test_formatted_numbers_from_google_sheets():
+    from core.sheet_sync import _number
+    assert _number("Rs 3,500") == 3500 and _number("1,200") == 1200 and _number(" 42 ") == 42
