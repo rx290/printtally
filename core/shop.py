@@ -215,6 +215,15 @@ def price_job(grams_by_material: dict, print_hours: float, prefs: dict | None = 
     sellable = licence != "personal"
     if not sellable:
         warnings.insert(0, "PERSONAL-USE LICENCE: do not sell this print (priced for your records only).")
+    # Fixed monthly costs (a design subscription, a royalty) spread over the units expected per month.
+    for item in prefs.get("monthly_fixed", []) or []:
+        units = float(item.get("units_per_month") or 0)
+        if units <= 0:
+            warnings.append(f"Set units_per_month for '{item.get('name', 'monthly cost')}': not added to the price.")
+            continue
+        per_unit = float(item.get("amount") or 0) / units
+        royalty_fixed += per_unit
+        plines.append((item.get("name", "Monthly cost"), 1, per_unit))
     stage = prefs.get("stage", "prototype")
     if stage not in STAGES:
         stage = "prototype"
@@ -240,6 +249,7 @@ def price_job(grams_by_material: dict, print_hours: float, prefs: dict | None = 
         hardware_cost=hw,
         royalty_fixed=royalty_fixed,
         royalty_pct=royalty_pct,
+        failure_rate=float(prefs.get("failure_rate", s.get("failure_rate", 0.0))),
     )
     return JobPrice(calculate_cost(inputs), mlines, plines, warnings, licence, stage, sellable,
                     s.get("currency", ""))
@@ -254,6 +264,8 @@ def format_job(job: JobPrice) -> str:
         out.append(f"  {name:<10} {grams:8.1f} g   {money(cost)}")
     for name, qty, cost in job.part_lines:
         out.append(f"  {name:<24} x{qty:g}   {money(cost)}")
+    if getattr(b, "failure_cost", 0):
+        out.append(f"  {'Failed prints':<24}     {money(b.failure_cost)}")
     out += [f"Cost to make:  {money(b.cost_to_make)}",
             f"Selling price: {money(b.final_price)}" + ("" if job.sellable else "  (not for sale)")]
     out += [f"! {w}" for w in job.warnings]

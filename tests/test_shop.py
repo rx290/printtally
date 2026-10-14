@@ -165,3 +165,18 @@ def test_weigh_factor_scales_grams(tmp_path):
     assert mats["PETG"].weigh_factor == 1.1 and mats["PLA"].weigh_factor == 1.0
     job = price_job({"PETG": 100.0}, 1.0, {}, materials=mats, parts={})
     assert abs(job.material_lines[0][1] - 110.0) < 1e-6 and abs(job.material_lines[0][2] - 330.0) < 1e-6
+
+
+def test_failure_rate_and_monthly_fixed(tmp_path):
+    from core.cost_model import CostInputs, calculate_cost
+    b = calculate_cost(CostInputs(model_weight_g=360, price_per_kg=2500, print_hours=0, machine_rate_per_hour=0,
+                                  printer_watts=0, waste_pct=0, profit_margin_pct=0, failure_rate=0.1))
+    assert abs(b.cost_to_make - 1000) < 0.01 and abs(b.failure_cost - 100) < 0.01     # 900 / 0.9
+    import json
+    from core.shop import load_materials, price_job
+    (tmp_path / "materials.json").write_text(json.dumps({"PETG": {"price_per_kg": 2500}}))
+    prefs = {"monthly_fixed": [{"name": "Dino kit royalty", "amount": 1400, "units_per_month": 20},
+                               {"name": "Broken", "amount": 500}]}
+    job = price_job({"PETG": 100.0}, 0.0, prefs, materials=load_materials(tmp_path), parts={}, inventory={})
+    assert ("Dino kit royalty", 1, 70.0) in job.part_lines
+    assert any("units_per_month" in w for w in job.warnings)

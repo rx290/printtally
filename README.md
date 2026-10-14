@@ -91,3 +91,8 @@ Files live in `~/.config/printtally`, or `$PRINTTALLY_CONFIG` when set.
 
 
 **Inventory.** Publish the Inventory tab too (columns `material, color, stock_g, reorder_at_g`) and run `printtally sync-sheet --inventory <CSV link>`. Stock is summed per material; a job that needs more filament than you have, or drops below the reorder level, gets a warning in the price and in Cura.
+
+### Failed prints and monthly costs
+Set `"failure_rate": 0.1` in settings.json (or a model's printtally.json) and every price adds the cost of the failed tries: cost to print / (1 - rate), so 10 % failures adds about 11 %. It shows as its own "Failed prints" line.
+
+For a fixed monthly cost such as a design subscription, add to the model's printtally.json: `"monthly_fixed": [{"name": "Dino kit royalty", "amount": 1400, "units_per_month": 20}]`. Each kit then carries 1400 / 20 = Rs 70 as its own line.

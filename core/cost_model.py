@@ -80,6 +80,7 @@ class CostInputs:
     # 9. Royalty for licensed designs: fixed per sale and/or a share of the selling price
     royalty_fixed: float = 0.0
     royalty_pct: float = 0.0
+    failure_rate: float = 0.0               # share of prints that fail; cost / (1 - rate)
 
 
 @dataclass
@@ -97,6 +98,7 @@ class CostBreakdown:
     hardware_cost: float = 0.0
     royalty_cost: float = 0.0
     cost_to_make: float = 0.0
+    failure_cost: float = 0.0
 
 
 def calculate_cost(inputs: CostInputs) -> CostBreakdown:
@@ -118,6 +120,8 @@ def calculate_cost(inputs: CostInputs) -> CostBreakdown:
         raise ValueError("design_rate_per_hour cannot be negative")
     if inputs.hardware_cost < 0 or inputs.royalty_fixed < 0:
         raise ValueError("hardware_cost and royalty_fixed cannot be negative")
+    if not (0 <= inputs.failure_rate <= 0.5):
+        raise ValueError("failure_rate must be between 0 and 0.5 (e.g. 0.1 for 10%)")
     if not (0 <= inputs.royalty_pct < 1):
         raise ValueError("royalty_pct must be at least 0 and below 1 (e.g. 0.1 for 10%)")
 
@@ -141,11 +145,16 @@ def calculate_cost(inputs: CostInputs) -> CostBreakdown:
     # instead, before post-processing/selling/margin are added.
     production_subtotal = material_cost + machine_cost + electricity_cost
     waste_maintenance_cost = inputs.waste_pct * production_subtotal
+    # Failed prints: every good part also pays for the failed tries (industry method: divide by 1 - failure rate,
+    # so 10 % failures adds about 11 %), on the cost to print it, before selling costs and margin.
+    made = production_subtotal + waste_maintenance_cost + inputs.hardware_cost
+    failure_cost = made / (1.0 - inputs.failure_rate) - made
 
     selling_cost_fixed = inputs.packaging_cost + inputs.shipping_cost
     pre_marketing_subtotal = (
         production_subtotal
         + waste_maintenance_cost
+        + failure_cost
         + inputs.hardware_cost
         + post_processing_cost
         + design_cost
@@ -161,7 +170,7 @@ def calculate_cost(inputs: CostInputs) -> CostBreakdown:
     # margin is still what was asked for after the designer's share.
     final_price = (subtotal + profit_margin) / (1.0 - inputs.royalty_pct)
     royalty_cost = inputs.royalty_fixed + inputs.royalty_pct * final_price
-    cost_to_make = production_subtotal + waste_maintenance_cost + inputs.hardware_cost
+    cost_to_make = made + failure_cost
 
     return CostBreakdown(
         material_cost=round(material_cost, 2),
@@ -177,6 +186,7 @@ def calculate_cost(inputs: CostInputs) -> CostBreakdown:
         hardware_cost=round(inputs.hardware_cost, 2),
         royalty_cost=round(royalty_cost, 2),
         cost_to_make=round(cost_to_make, 2),
+        failure_cost=round(failure_cost, 2),
     )
 
 
@@ -189,6 +199,7 @@ def format_breakdown(breakdown: CostBreakdown, currency: str = "") -> str:
         f"Printing cost:          {money(breakdown.machine_cost)}",
         f"Electricity cost:       {money(breakdown.electricity_cost)}",
         f"Maintenance cost:       {money(breakdown.waste_maintenance_cost)}",
+        f"Failed prints:          {money(breakdown.failure_cost)}",
         f"Parts cost:             {money(breakdown.hardware_cost)}",
         f"Labor cost:             {money(breakdown.post_processing_cost)}",
         f"Design cost:            {money(breakdown.design_cost)}",
