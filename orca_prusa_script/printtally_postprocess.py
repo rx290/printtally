@@ -17,8 +17,8 @@ all unless --include-design-cost is also passed.
 The slicer appends the G-code file's path as the final argument automatically
 -- do not add it yourself. This script reads the slicer's own footer comments
 (weight and estimated print time, already computed by the slicer), runs them
-through the same core.cost_model formula the Cura plugin uses, and appends a
-readable cost breakdown as a comment block at the end of the G-code file.
+through the same core.cost_model formula the Cura plugin uses, and prepends a
+readable cost breakdown as a comment block at the start of the G-code file.
 
 Footer comment formats parsed here were confirmed directly against OrcaSlicer's
 own source (src/libslic3r/GCode.cpp and GCode/GCodeProcessor.cpp), not assumed:
@@ -71,6 +71,31 @@ def _parse_print_hours(gcode_text: str) -> float:
     return total_seconds / 3600.0
 
 
+def format_report(breakdown, inputs, currency=""):
+    """Presentation only; keep calculation and legacy output keys intact."""
+    rows = [("Material used:", f"{inputs.model_weight_g:,.1f} g"),
+            ("Machine time:", f"{inputs.print_hours:,.2f} h")]
+    for line in format_breakdown(breakdown).splitlines():
+        label, value = line.rsplit(":", 1)
+        rows.append((label + ":", f"{currency}{float(value):,.2f}"))
+    value_width = max(len(value) for _, value in rows)
+    report = ["PrintTally cost breakdown", "-" * (25 + value_width)]
+    report += [f"{label:<24} {value:>{value_width}}" for label, value in rows]
+    report.append("-" * (25 + value_width))
+    # Existing consumers read these literal, ungrouped output keys.
+    if not currency:
+        report += ["Compatibility values:",
+                   f"Design cost:            {breakdown.design_cost:.2f}",
+                   f"FINAL PRICE:            {breakdown.final_price:.2f}"]
+    warnings = []
+    if inputs.electricity_rate_per_kwh == 0:
+        warnings.append("Electricity rate not set: electricity counted as 0.")
+    if inputs.price_per_kg == 0:
+        warnings.append("Material price is zero: material counted as 0.")
+    report += [f"! {warning}" for warning in warnings]
+    return "\n".join(report)
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--price-per-kg", type=float, required=True)
@@ -119,12 +144,16 @@ def main() -> int:
     )
     breakdown = calculate_cost(inputs)
 
-    report = format_breakdown(breakdown, currency=args.currency)
-    with gcode_file.open("a", encoding="utf-8") as f:
-        f.write("\n; ----- PrintTally cost breakdown -----\n")
-        for line in report.splitlines():
-            f.write(f"; {line}\n")
-        f.write("; --------------------------------------\n")
+    report = format_report(breakdown, inputs, currency=args.currency)
+    header = "; ----- PrintTally cost breakdown -----\n"
+    header += "".join(f"; {line}\n" for line in report.splitlines())
+    header += "; --------------------------------------\n"
+    # Reprocessing a file replaces our report instead of stacking stale prices.
+    gcode_text = re.sub(
+        r"(?:^|\n); ----- PrintTally cost breakdown -----\n.*?; --------------------------------------\n",
+        "", gcode_text, flags=re.DOTALL,
+    )
+    gcode_file.write_text(header + gcode_text, encoding="utf-8")
 
     print(report)
     return 0

@@ -44,8 +44,15 @@ UM.Dialog
         marginPct.valueText = String(s.profit_margin_pct)
     }
 
+    property bool valuesValid: pricePerKg.acceptableInput && machineRate.acceptableInput
+        && printerWatts.acceptableInput && electricityRate.acceptableInput && wastePct.acceptableInput
+        && laborRate.acceptableInput && laborHours.acceptableInput && designHours.acceptableInput
+        && designRate.acceptableInput && packagingCost.acceptableInput && shippingCost.acceptableInput
+        && marketingFeePct.acceptableInput && marginPct.acceptableInput
+
     function save(closeDialog)
     {
+        if (!valuesValid) { return }
         var s = {
             price_per_kg: parseFloat(pricePerKg.valueText) || 0,
             filament_profile: filamentProfile.currentIndex > 0 ? filamentProfile.currentText : "",
@@ -83,6 +90,7 @@ UM.Dialog
         Cura.PrimaryButton
         {
             text: catalog.i18nc("@action:button", "Save")
+            enabled: base.valuesValid
             onClicked: save(true)
         }
     ]
@@ -95,28 +103,11 @@ UM.Dialog
 
         Column
         {
-            width: base.width - 2 * UM.Theme.getSize("default_margin").width
+            width: base.labelWidth + base.controlWidth
             spacing: UM.Theme.getSize("default_margin").height
 
-            UM.Label { text: catalog.i18nc("@label", "Material"); font: UM.Theme.getFont("default_bold") }
-            Row
-            {
-                width: parent.width
-                UM.Label { text: catalog.i18nc("@label", "Filament profile"); width: base.labelWidth; anchors.verticalCenter: parent.verticalCenter }
-                ComboBox { id: filamentProfile; width: base.controlWidth; model: [] }
-            }
-            Cura.NumericTextFieldWithUnit
-            {
-                id: pricePerKg
-                width: parent.width
-                labelText: catalog.i18nc("@label", "Price per kg")
-                unitText: base.currency
-                labelWidth: base.labelWidth
-                controlWidth: base.controlWidth
-            }
-
-            UM.Label { text: catalog.i18nc("@label", "Machine"); font: UM.Theme.getFont("default_bold") }
-            Cura.NumericTextFieldWithUnit
+            UM.Label { text: catalog.i18nc("@label", "Shop rates"); font: UM.Theme.getFont("default_bold") }
+            PrintTallyNumberField
             {
                 id: machineRate
                 width: parent.width
@@ -125,40 +116,7 @@ UM.Dialog
                 labelWidth: base.labelWidth
                 controlWidth: base.controlWidth
             }
-
-            UM.Label { text: catalog.i18nc("@label", "Electricity"); font: UM.Theme.getFont("default_bold") }
-            Cura.NumericTextFieldWithUnit
-            {
-                id: printerWatts
-                width: parent.width
-                labelText: catalog.i18nc("@label", "Printer power draw")
-                unitText: "W"
-                labelWidth: base.labelWidth
-                controlWidth: base.controlWidth
-            }
-            Cura.NumericTextFieldWithUnit
-            {
-                id: electricityRate
-                width: parent.width
-                labelText: catalog.i18nc("@label", "Electricity rate")
-                unitText: base.currency + "/kWh"
-                labelWidth: base.labelWidth
-                controlWidth: base.controlWidth
-            }
-
-            UM.Label { text: catalog.i18nc("@label", "Maintenance"); font: UM.Theme.getFont("default_bold") }
-            Cura.NumericTextFieldWithUnit
-            {
-                id: wastePct
-                width: parent.width
-                labelText: catalog.i18nc("@label", "Waste / maintenance")
-                unitText: catalog.i18nc("@label", "fraction, e.g. 0.07 = 7%")
-                labelWidth: base.labelWidth
-                controlWidth: base.controlWidth
-            }
-
-            UM.Label { text: catalog.i18nc("@label", "Labor"); font: UM.Theme.getFont("default_bold") }
-            Cura.NumericTextFieldWithUnit
+            PrintTallyNumberField
             {
                 id: laborRate
                 width: parent.width
@@ -167,33 +125,7 @@ UM.Dialog
                 labelWidth: base.labelWidth
                 controlWidth: base.controlWidth
             }
-            Cura.NumericTextFieldWithUnit
-            {
-                id: laborHours
-                width: parent.width
-                labelText: catalog.i18nc("@label", "Post-processing hours")
-                unitText: catalog.i18nc("@label", "h")
-                labelWidth: base.labelWidth
-                controlWidth: base.controlWidth
-            }
-
-            UM.Label { text: catalog.i18nc("@label", "Design (custom jobs only)"); font: UM.Theme.getFont("default_bold") }
-            UM.CheckBox
-            {
-                id: includeDesignCost
-                text: catalog.i18nc("@option:check", "Include design cost for this job")
-            }
-            Cura.NumericTextFieldWithUnit
-            {
-                id: designHours
-                width: parent.width
-                enabled: includeDesignCost.checked
-                labelText: catalog.i18nc("@label", "Design hours")
-                unitText: catalog.i18nc("@label", "h")
-                labelWidth: base.labelWidth
-                controlWidth: base.controlWidth
-            }
-            Cura.NumericTextFieldWithUnit
+            PrintTallyNumberField
             {
                 id: designRate
                 width: parent.width
@@ -203,9 +135,78 @@ UM.Dialog
                 labelWidth: base.labelWidth
                 controlWidth: base.controlWidth
             }
+            UM.Label { text: catalog.i18nc("@label", "Electricity"); font: UM.Theme.getFont("default_bold") }
+            PrintTallyNumberField
+            {
+                id: printerWatts
+                width: parent.width
+                labelText: catalog.i18nc("@label", "Printer power draw")
+                unitText: "W"
+                labelWidth: base.labelWidth
+                controlWidth: base.controlWidth
+            }
+            PrintTallyNumberField
+            {
+                id: electricityRate
+                width: parent.width
+                labelText: catalog.i18nc("@label", "Electricity rate")
+                unitText: base.currency + "/kWh"
+                labelWidth: base.labelWidth
+                controlWidth: base.controlWidth
+            }
+            UM.Label { text: catalog.i18nc("@label", "Filaments"); font: UM.Theme.getFont("default_bold") }
+            Row
+            {
+                width: parent.width
+                UM.Label { text: catalog.i18nc("@label", "Filament profile"); width: base.labelWidth; anchors.verticalCenter: parent.verticalCenter }
+                ComboBox { id: filamentProfile; width: base.controlWidth; model: [] }
+            }
 
-            UM.Label { text: catalog.i18nc("@label", "Selling"); font: UM.Theme.getFont("default_bold") }
-            Cura.NumericTextFieldWithUnit
+            PrintTallyNumberField
+            {
+                id: pricePerKg
+                width: parent.width
+                labelText: catalog.i18nc("@label", "Price per kg")
+                unitText: base.currency
+                labelWidth: base.labelWidth
+                controlWidth: base.controlWidth
+            }
+            UM.Label { text: catalog.i18nc("@label", "Defaults"); font: UM.Theme.getFont("default_bold") }
+            UM.CheckBox
+            {
+                id: includeDesignCost
+                text: catalog.i18nc("@option:check", "Include design cost for this job")
+            }
+            PrintTallyNumberField
+            {
+                id: wastePct
+                maximumValue: 1
+                width: parent.width
+                labelText: catalog.i18nc("@label", "Waste / maintenance")
+                unitText: "× 1 (0.1 = 10%)"
+                labelWidth: base.labelWidth
+                controlWidth: base.controlWidth
+            }
+            PrintTallyNumberField
+            {
+                id: laborHours
+                width: parent.width
+                labelText: catalog.i18nc("@label", "Post-processing hours")
+                unitText: catalog.i18nc("@label", "h")
+                labelWidth: base.labelWidth
+                controlWidth: base.controlWidth
+            }
+            PrintTallyNumberField
+            {
+                id: designHours
+                width: parent.width
+                enabled: includeDesignCost.checked
+                labelText: catalog.i18nc("@label", "Design hours")
+                unitText: catalog.i18nc("@label", "h")
+                labelWidth: base.labelWidth
+                controlWidth: base.controlWidth
+            }
+            PrintTallyNumberField
             {
                 id: packagingCost
                 width: parent.width
@@ -214,7 +215,7 @@ UM.Dialog
                 labelWidth: base.labelWidth
                 controlWidth: base.controlWidth
             }
-            Cura.NumericTextFieldWithUnit
+            PrintTallyNumberField
             {
                 id: shippingCost
                 width: parent.width
@@ -223,23 +224,22 @@ UM.Dialog
                 labelWidth: base.labelWidth
                 controlWidth: base.controlWidth
             }
-            Cura.NumericTextFieldWithUnit
+            PrintTallyNumberField
             {
                 id: marketingFeePct
+                maximumValue: 1
                 width: parent.width
                 labelText: catalog.i18nc("@label", "Marketing / marketplace fee")
-                unitText: catalog.i18nc("@label", "fraction, e.g. 0.1 = 10%")
+                unitText: "× 1 (0.1 = 10%)"
                 labelWidth: base.labelWidth
                 controlWidth: base.controlWidth
             }
-
-            UM.Label { text: catalog.i18nc("@label", "Profit"); font: UM.Theme.getFont("default_bold") }
-            Cura.NumericTextFieldWithUnit
+            PrintTallyNumberField
             {
                 id: marginPct
                 width: parent.width
                 labelText: catalog.i18nc("@label", "Profit margin")
-                unitText: catalog.i18nc("@label", "fraction, e.g. 0.25 = 25%")
+                unitText: "× 1 (0.1 = 10%)"
                 labelWidth: base.labelWidth
                 controlWidth: base.controlWidth
             }

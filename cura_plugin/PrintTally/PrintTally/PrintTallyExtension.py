@@ -91,6 +91,7 @@ class PrintTallyExtension(QObject, Extension):
                 print_hours = int(current_print_time) / 3600.0
                 has_estimate = weight_g > 0.0
 
+        self._print_hours = print_hours
         self._job = None
         if has_estimate:
             try:
@@ -161,6 +162,28 @@ class PrintTallyExtension(QObject, Extension):
                 self._job.currency = currency
             return shop.format_job(self._job) + "\n\n" + format_breakdown(self._breakdown, currency)
         return format_breakdown(self._breakdown, currency)
+
+    @pyqtProperty(str, notify=breakdownTextChanged)
+    def displayJson(self) -> str:
+        job = getattr(self, "_job", None)
+        if not job:
+            return json.dumps({"rows": [], "warnings": [], "badge": "", "sellable": True, "total": ""})
+        b = job.breakdown
+        currency = job.currency or self._app.getPreferences().getValue("cura/currency") or ""
+        def money(value):
+            return f"{currency}{value:,.2f}"
+        rows = [{"label": f"{name} · {grams:,.1f} g", "value": money(cost)}
+                for name, grams, cost in job.material_lines]
+        rows += [{"label": label, "value": money(value)} for label, value in [
+            (f"Machine · {self._print_hours:,.2f} h", b.machine_cost),
+            ("Electricity", b.electricity_cost), ("Parts", b.hardware_cost),
+            ("Waste / maintenance", b.waste_maintenance_cost),
+            ("Labor", b.post_processing_cost), ("Design", b.design_cost),
+            ("Selling costs", b.selling_cost), ("Royalty", b.royalty_cost),
+            ("Margin", b.profit_margin), ("Cost to make", b.cost_to_make)]]
+        return json.dumps({"rows": rows, "warnings": job.warnings,
+                           "badge": f"{job.stage} · {job.licence}" + (" · DO NOT SELL" if not job.sellable else ""),
+                           "sellable": job.sellable, "total": money(b.final_price)})
 
     # ----------------------------------------------------- settings dialog
 
