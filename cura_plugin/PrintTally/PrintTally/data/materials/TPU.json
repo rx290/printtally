@@ -1,0 +1,16 @@
+{
+  "name": "TPU",
+  "prices_date": "2026-10-25",
+  "unit": "PKR per kg",
+  "density_g_cm3": 1.21,
+  "aliases": [
+    "tpu",
+    "flex",
+    "generic tpu",
+    "tpu 95a"
+  ],
+  "remas_key": "TPU 95A",
+  "price_required": true,
+  "note": "price unknown: set my_price before using it",
+  "batches": {}
+}

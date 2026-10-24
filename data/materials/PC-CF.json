@@ -1,0 +1,15 @@
+{
+  "name": "PC-CF",
+  "prices_date": "2026-10-25",
+  "unit": "PKR per kg",
+  "density_g_cm3": 1.22,
+  "aliases": [
+    "pc-cf",
+    "pc cf",
+    "cf-pc"
+  ],
+  "remas_key": "CF-PC 3dxtech",
+  "price_required": true,
+  "note": "price unknown: set my_price before using it",
+  "batches": {}
+}

@@ -1,0 +1,22 @@
+{
+  "name": "PETG",
+  "prices_date": "2026-10-25",
+  "unit": "PKR per kg",
+  "density_g_cm3": 1.27,
+  "aliases": [
+    "petg",
+    "generic petg",
+    "petg basic",
+    "pet-g"
+  ],
+  "remas_key": "PETG",
+  "batches": {
+    "A/B grade": {
+      "my_price": 2500
+    },
+    "original": {
+      "my_price": 3000,
+      "list_price": 3700
+    }
+  }
+}

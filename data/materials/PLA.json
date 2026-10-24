@@ -1,0 +1,22 @@
+{
+  "name": "PLA",
+  "prices_date": "2026-10-25",
+  "unit": "PKR per kg",
+  "density_g_cm3": 1.24,
+  "aliases": [
+    "pla",
+    "pla+",
+    "generic pla",
+    "pla basic",
+    "pla matte"
+  ],
+  "remas_key": "PLA+",
+  "price_status": "estimate",
+  "note": "Estimate: Rs 2,500-3,500 per kg, shipment in 1-2 quarters. Replace with a real price.",
+  "batches": {
+    "estimate": {
+      "my_price": 3000,
+      "note": "estimated, range 2500-3500"
+    }
+  }
+}

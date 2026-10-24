@@ -38,7 +38,8 @@ def test_a_prototype_always_has_a_price(lib):
 
 def test_missing_prices_are_reported_not_guessed(lib):
     lib["PLA"].price_per_kg = 0
-    job = shop.price_job({"PLA": 10.0}, 1.0, prefs={"bom": [{"part": "dob_5w", "qty": 2}]}, materials=lib, parts={})
+    job = shop.price_job({"PLA": 10.0}, 1.0, prefs={"bom": [{"part": "dob_5w", "qty": 2}]}, materials=lib, parts={},
+                         settings={"electricity_rate_per_kwh": 0})
     text = " ".join(job.warnings)
     assert "No price for PLA" in text and "dob_5w" in text and "Electricity rate not set" in text
     assert job.breakdown.material_cost == 0 and job.breakdown.hardware_cost == 0

@@ -1,0 +1,12 @@
+{
+  "name": "qalam-300-pro",
+  "paid_hours_per_year": 2400,
+  "grams_per_hour": 12.0,
+  "heads": 1,
+  "watts": 150.0,
+  "extra_watts_per_head": 0.0,
+  "maintenance_per_hour": 10.0,
+  "cost": 250000,
+  "payback_years": 2,
+  "note": "NOT YET IN SERVICE (arriving soon). Rs 180k plus planned upgrades; selectable for quotes"
+}

@@ -1,0 +1,14 @@
+{
+  "name": "railu",
+  "display_name": "Railu",
+  "paid_hours_per_year": 2400,
+  "grams_per_hour": 12.0,
+  "heads": 1,
+  "watts": 150.0,
+  "extra_watts_per_head": 0.0,
+  "maintenance_per_hour": 10.0,
+  "cost": 100000,
+  "payback_years": 2,
+  "purge_waste_g": 0.0,
+  "note": "Small all-rails Ender 3 clone (Ender 5 Pro board, Raspberry Pi, BMCU 370C multi-colour unit), with enclosure. Multi-colour purge adds filament: set purge_waste_g for those jobs"
+}

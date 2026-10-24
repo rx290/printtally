@@ -103,6 +103,50 @@ It needs your material prices in `materials.json` and uses your `settings.json` 
 
 Material names map onto the cards: PETG is "PETG", PLA is "PLA+", TPU is "TPU 95A"; other names match by name. Set `"market_material": "CF-PETG"` in a model's `printtally.json` to pick a card entry yourself. A material missing from a card is reported and that price is not shown. Set `electricity_rate_per_kwh` (for example 90 for Rs 90 per unit) and `printer_watts` for real electricity. The Orca/Prusa script needs `--material PETG` for these lines; the Cura plugin shows them in its text and widget.
 
+## Profiles
+
+Three things decide a price, and each one is a small file you can list, show and edit:
+
+- a **pricing profile** (how you charge),
+- a **printer** (what the machine costs to run),
+- a **material** (what the filament costs you).
+
+**When to use which pricing profile.** Lamps and custom jobs: use `service`. Product lines such as the dino kits: use `product`.
+
+- `service` is a fair, payback-based price. The cost of one gram is worked out from the printer's payback and upkeep, electricity, filament (with 10% waste), 10% failed prints, 20 minutes of labour per order at Rs 400 an hour spread over a typical 100 g order, and 10% overhead for packaging, internet and marketing. The price is that cost times 2, so the extra pays for the next printer. About Rs 11.6 of cost per gram on a mid-priced printer becomes about Rs 24 to 32 to the customer. There is a minimum order of Rs 400. A slow, fine-layer print is never priced below its real time cost times 1.5. The Remas line is always shown next to it as the market reference. Remas is a reference only: the service price is never copied from it.
+- `product` keeps the original PrintTally settings exactly as they were (machine Rs 40 an hour, 7% waste, 25% margin, own card at cost x 2 on a 12 g per hour basis, no minimum). It is cheap on purpose, for kits. If you want a product card nearer cost x 1.4, generate one yourself: `printtally.py build-card --profile product --profit-multiplier 1.4 --out product_rates.json`. Your own settings are never overwritten.
+
+```sh
+python3 printtally.py profiles list
+python3 printtally.py profiles show service
+python3 printtally.py profiles set service minimum_price=500 labour_rate_per_hour=450
+python3 printtally.py profiles use service          # your default when you pass nothing
+python3 printtally.py price job.gcode --profile service --printer railu --material PETG:original
+```
+
+Shipped defaults live in `data/profiles/`. Your edits go to `~/.config/printtally/profiles/<name>.json` (a file there only needs the numbers you changed). An old `settings.json` with pricing values moves into the `product` profile automatically until you save your own. Pick a profile with `--profile`, `$PRINTTALLY_PROFILE`, `"profile"` in a `printtally.json` beside the model, or the default above. The OrcaSlicer script takes `--profile`, `--printer`, `--heads` and `--material`; any other flag overrides one value of the profile. The Cura plugin has Profile and Printer dropdowns in its settings (left on "(default)" it reads your default and the result says which profile it used; with nothing chosen anywhere it keeps using the plugin's own fields).
+
+### Printers
+
+`printtally.py printers list | show NAME | set NAME key=value | use NAME`. A printer file holds its cost, payback years, paid hours per year (2,400), grams per hour per head (12), heads, watts and maintenance per hour (Rs 10). The machine rate is `cost / (payback years x paid hours per year) + maintenance`. To re-derive the rates, change the cost, `payback_years` or `paid_hours_per_year` (hours per day x 365) of a printer and the price follows. Each profile names a default printer (`product`: `quadender-pro-400`, `service`: `qalam-pro-400`); `printers use NAME` or `--printer NAME` overrides it, and `--printer none` uses the profile's own machine values.
+
+The Quadender Pro 400 prints with up to 4 heads at once, so its throughput is 4 x 12 g per hour and the payback per gram is divided by the heads in use. Use `--heads 1` for a single-part job. On the Railu, set `purge_waste_g` for multi-colour jobs, because purged filament is paid for. The Qalam 300 Pro is not yet in service but can be selected.
+
+| Printer | Cost (Rs) | Payback per g at 1 year | at 2 years | Service price per g (PETG, 200 g, 8 h) |
+|---|---|---|---|---|
+| Qalam Pro 400 | 400,000 | 13.9 | 6.9 | about 32 |
+| Qalam 300 Pro (not yet in service) | 250,000 | 8.7 | 4.3 | about 25 |
+| Quadender Pro 400 (4 heads) | 375,000 | 3.3 | 1.6 | about 16 |
+| Railu | 100,000 | 3.5 | 1.7 | about 19 |
+
+(The Quadender prices low per gram because four heads share one machine rate; with one head in use it is about 31 Rs per gram.)
+
+### Materials
+
+Material files live in `data/materials/` (your copies in `~/.config/printtally/materials/`). Each has batches with `my_price` (what you pay through your reference, used in all the maths) and optionally `list_price` (the open-market price, shown only as a note). Pick a batch with `--material PETG:original`; the default is the cheapest. ABS has quantity tiers on `my_price` (Rs 3,400 up to 10 kg, Rs 3,250 above), chosen with `"order_kg": {"ABS": 12}` in settings.json. PLA is marked ESTIMATE (Rs 3,000 within a 2,500 to 3,500 range). TPU, PC-CF and ASA have no price yet: PrintTally prints "set a price for TPU" and leaves it out rather than inventing one. Each material carries its key on the Remas card (PC-CF uses `CF-PC 3dxtech`). Electricity is shop-wide in `settings.json` (default Rs 90 a unit). `printtally.py materials` lists everything.
+
+Every price starts with the real print factors from the G-code: print time, layer height, line width, grams, and electricity from the printer's watts times the time.
+
 ## Tests
 
 ```

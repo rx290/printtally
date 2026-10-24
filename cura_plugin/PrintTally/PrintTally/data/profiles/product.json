@@ -1,0 +1,31 @@
+{
+  "name": "product",
+  "description": "Product lines (dino kits and similar): kept cheap. These are the original PrintTally settings, unchanged. For a card near cost x 1.4 try: build-card --profile product --profit-multiplier 1.4 --out product_rates.json",
+  "machine_rate_per_hour": 40.0,
+  "waste_pct": 0.07,
+  "profit_margin_pct": 0.25,
+  "failure_rate": 0.0,
+  "post_processing_rate_per_hour": 0.0,
+  "design_rate_per_hour": 0.0,
+  "include_design_cost": false,
+  "allow_royalty": true,
+  "packaging_cost": 0.0,
+  "shipping_cost": 0.0,
+  "marketing_fee_pct": 0.0,
+  "labour_rate_per_hour": 150.0,
+  "labour_min_per_100g": 5.0,
+  "labour_min_per_order": 0.0,
+  "grams_per_hour": 12.0,
+  "profit_multiplier": 2.0,
+  "tier_discounts": [
+    0.0,
+    0.15,
+    0.3
+  ],
+  "reseller_discount": 0.17,
+  "suggest_mode": "mine",
+  "cost_multiplier": 2.0,
+  "rounding_step": 50.0,
+  "minimum_price": 0.0,
+  "printer": "quadender-pro-400"
+}

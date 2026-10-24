@@ -1,0 +1,13 @@
+{
+  "name": "quadender-pro-400",
+  "display_name": "Quadender Pro 400",
+  "paid_hours_per_year": 2400,
+  "grams_per_hour": 12.0,
+  "heads": 4,
+  "watts": 175.0,
+  "extra_watts_per_head": 75.0,
+  "maintenance_per_hour": 10.0,
+  "cost": 375000,
+  "payback_years": 2,
+  "note": "Ender 3 base Rs 85k + rails and IDEX + 4 hotends (direct drive, NEMA 24) + Raspberry Pi 3B+. 4 heads print at once: throughput is heads x g/h, payback per gram is divided by the heads in use (about 400 W with all 4)"
+}

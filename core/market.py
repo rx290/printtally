@@ -133,20 +133,28 @@ CARD_DEFAULTS = {
     "tier_discounts": [0.0, 0.15, 0.30],   # price drop for the 500-1000 g and above-1000 g tiers
     "reseller_discount": 0.17,         # resellers pay this much less than customers
     "setup_charges": {},               # {"PC 3dxtech": 1000}: fixed charge per material, added once
+    "filament_waste_pct": 0.0,         # extra filament lost to purges, supports, spool ends
+    "overhead_pct": 0.0,               # packaging, internet, marketing: a share of the cost
+    "typical_order_g": 0.0,            # with labour_min_per_order: spreads handling time over a typical order's grams
+    "labour_min_per_order": 0.0,       # minutes of handling per order
+    "rate_card": {},                   # {"PETG": [24, 21, 18]}: fixed Rs per gram for the 3 tiers, replaces cost x multiplier
 }
 
 
 def cost_per_gram(price_per_kg: float, s: dict) -> dict:
     """What one gram of finished part costs you, split into its parts (all Rs per gram)."""
     gph = max(float(s.get("grams_per_hour") or CARD_DEFAULTS["grams_per_hour"]), 0.1)
-    filament = price_per_kg / 1000.0
+    filament = price_per_kg / 1000.0 * (1.0 + float(s.get("filament_waste_pct", 0) or 0))
     electricity = float(s.get("printer_watts", 250)) / 1000.0 * float(s.get("electricity_rate_per_kwh", 0)) / gph
     wear = float(s.get("machine_rate_per_hour", 0)) / gph
-    labour = (float(s.get("labour_rate_per_hour", CARD_DEFAULTS["labour_rate_per_hour"]))
-              * float(s.get("labour_min_per_100g", CARD_DEFAULTS["labour_min_per_100g"])) / 60.0 / 100.0)
+    rate = float(s.get("labour_rate_per_hour", CARD_DEFAULTS["labour_rate_per_hour"]))
+    if float(s.get("typical_order_g", 0) or 0) > 0 and float(s.get("labour_min_per_order", 0) or 0) > 0:
+        labour = rate * float(s["labour_min_per_order"]) / 60.0 / float(s["typical_order_g"])
+    else:
+        labour = rate * float(s.get("labour_min_per_100g", CARD_DEFAULTS["labour_min_per_100g"])) / 60.0 / 100.0
     before_failure = filament + electricity + wear + labour
     failure = before_failure / (1.0 - float(s.get("failure_rate", 0))) - before_failure
-    cost = before_failure + failure
+    cost = (before_failure + failure) * (1.0 + float(s.get("overhead_pct", 0) or 0))
     return {"filament": filament, "electricity": electricity, "wear": wear, "failure": failure,
             "labour": labour, "cost": cost}
 
@@ -164,7 +172,8 @@ def build_card(settings: dict, price_per_kg: dict) -> dict:
             continue
         key = CARD_KEYS.get(name.lower(), name)
         base = cost_per_gram(per_kg, s)["cost"] * mult
-        customer = [round(base * (1 - d), 1) for d in tiers[:3]]
+        fixed = {k.lower(): v for k, v in (s.get("rate_card") or {}).items()}.get(name.lower())
+        customer = [float(x) for x in fixed][:3] if fixed else [round(base * (1 - d), 1) for d in tiers[:3]]
         spec = {"customer": customer, "reseller": [round(r * (1 - reseller), 1) for r in customer]}
         if key in (s.get("setup_charges") or {}):
             spec["setup"] = s["setup_charges"][key]
@@ -191,8 +200,16 @@ def my_card(settings: dict, price_per_kg: dict, path=None):
 
 # ------------------------------------------------------------------- suggestions
 def suggest(mine: MarketPrice | None, remas: MarketPrice | None, cost: float, mode: str = "mine",
-            multiplier: float = 2.0, step: float = 50.0) -> tuple[float, str]:
-    """(suggested price, how). Default is YOUR card's customer price; Remas is used only when you choose it."""
+            multiplier: float = 2.0, step: float = 50.0, minimum: float = 0.0) -> tuple[float, str]:
+    """(suggested price, how), never below the minimum order. Default is YOUR card's customer price;
+    Remas is used only when you choose it."""
+    price, how = _suggest(mine, remas, cost, mode, multiplier, step)
+    if minimum and price < minimum:
+        return round_to(minimum, step), f"minimum order ({how} was {price:,.0f})"
+    return price, how
+
+
+def _suggest(mine, remas, cost, mode, multiplier, step):
     mode = {"customer": "mine", "reseller": "mine_reseller"}.get((mode or "mine").lower(), (mode or "mine").lower())
     if mode == "mine_reseller" and mine and mine.available and mine.reseller is not None:
         return round_to(mine.reseller, step), "your reseller price"
@@ -219,7 +236,7 @@ def price_parts(grams: float, hours: float, filament: float, electricity: float,
 
 def format_market(parts: list | None, mine: MarketPrice | None, remas: MarketPrice | None, cost: float,
                   mode: str = "mine", multiplier: float = 2.0, currency: str = "", grams: float = 0.0,
-                  hours: float = 0.0) -> list:
+                  hours: float = 0.0, step: float = 50.0, minimum: float = 0.0) -> list:
     """Report lines: how your price is built, then the Remas comparison, the gap and the suggested price."""
     def money(v):
         return f"{currency}{v:,.0f}" if currency else f"{v:,.0f}"
@@ -242,7 +259,7 @@ def format_market(parts: list | None, mine: MarketPrice | None, remas: MarketPri
                        if gap else "Gap to market: none (same as Remas customer)")
     else:
         out.append("market (Remas): not available")
-    price, how = suggest(mine, remas, cost, mode, multiplier)
+    price, how = suggest(mine, remas, cost, mode, multiplier, step, minimum)
     out.append(f"Suggested:     {money(price)}  ({how})")
     for m in (mine.messages if mine else []) + (remas.messages if remas else []):
         out.append(f"! {m}")

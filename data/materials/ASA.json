@@ -1,0 +1,14 @@
+{
+  "name": "ASA",
+  "prices_date": "2026-10-25",
+  "unit": "PKR per kg",
+  "density_g_cm3": 1.07,
+  "aliases": [
+    "asa",
+    "generic asa"
+  ],
+  "remas_key": "ASA",
+  "price_required": true,
+  "note": "price unknown: set my_price before using it",
+  "batches": {}
+}

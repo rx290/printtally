@@ -31,10 +31,12 @@ SETTINGS_PREFERENCE = "printtally/settings"
 # zero rather than guessing a number that would look official but isn't.
 DEFAULT_SETTINGS = {
     "price_per_kg": 2500.0,
+    "profile": "",                    # "" = your default profile (settings.json), else service / product
+    "printer": "",                    # "" = the profile's or your default printer
     "filament_profile": "",           # "" = from Cura's material names; else a materials.json profile
     "machine_rate_per_hour": 40.0,
     "printer_watts": 250.0,
-    "electricity_rate_per_kwh": 0.0,
+    "electricity_rate_per_kwh": 90.0,
     "waste_pct": 0.07,
     "post_processing_rate_per_hour": 0.0,
     "post_processing_hours": 0.0,
@@ -97,6 +99,12 @@ class PrintTallyExtension(QObject, Extension):
         if has_estimate:
             try:
                 names = list(getattr(print_information, "materialNames", []) or [])
+                try:   # real print factors from the slicer's own settings
+                    stack = self._app.getGlobalContainerStack()
+                    settings = dict(settings, layer_height=float(stack.getProperty("layer_height", "value") or 0),
+                                    line_width=float(stack.getProperty("line_width", "value") or 0))
+                except Exception:  # noqa: BLE001
+                    pass
                 self._job = shop.price_from_slicer(list(print_information.materialWeights), names, print_hours,
                                                    self._modelPath(), settings)
                 self._breakdown = self._job.breakdown
@@ -225,10 +233,30 @@ class PrintTallyExtension(QObject, Extension):
     def filamentProfilesJson(self) -> str:
         """["Auto (from Cura)", profile names from materials.json...] for the settings dropdown."""
         try:
-            names = sorted(shop.load_materials().keys())
+            names = []
+            for m in sorted(shop.load_materials().values(), key=lambda x: x.name):
+                names.append(m.name)
+                names += [f"{m.name}:{b}" for b in m.batches] if len(m.batches) > 1 else []
         except Exception:
             names = []
         return json.dumps(["Auto (from Cura)"] + names)
+
+    @pyqtProperty(str, notify=settingsChanged)
+    def profileChoicesJson(self) -> str:
+        """["(default)", profile names...] for the profile dropdown."""
+        try:
+            from . import profiles as profiles_mod
+            return json.dumps(["(default)"] + profiles_mod.list_profiles())
+        except Exception:
+            return json.dumps(["(default)"])
+
+    @pyqtProperty(str, notify=settingsChanged)
+    def printerChoicesJson(self) -> str:
+        try:
+            from . import profiles as profiles_mod
+            return json.dumps(["(default)"] + profiles_mod.list_printers())
+        except Exception:
+            return json.dumps(["(default)"])
 
     @pyqtSlot(str)
     def saveSettingsJson(self, settings_json: str) -> None:

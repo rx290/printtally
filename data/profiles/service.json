@@ -1,0 +1,32 @@
+{
+  "name": "service",
+  "description": "Custom print jobs and lamps. Fair, payback-based: the chosen printer's payback and wear, 10% failures, 20 min labour per order, 10% overhead; price is about cost x 2 so the extra pays for new printers. Edit any number.",
+  "failure_rate": 0.1,
+  "labour_min_per_order": 20.0,
+  "labour_rate_per_hour": 400.0,
+  "typical_order_g": 100.0,
+  "overhead_pct": 0.1,
+  "filament_waste_pct": 0.1,
+  "waste_pct": 0.0,
+  "profit_margin_pct": 0.0,
+  "post_processing_rate_per_hour": 0.0,
+  "design_rate_per_hour": 0.0,
+  "include_design_cost": false,
+  "allow_royalty": true,
+  "packaging_cost": 0.0,
+  "shipping_cost": 0.0,
+  "marketing_fee_pct": 0.1,
+  "profit_multiplier": 2.0,
+  "tier_discounts": [
+    0.0,
+    0.125,
+    0.25
+  ],
+  "reseller_discount": 0.17,
+  "price_floor_multiplier": 1.5,
+  "suggest_mode": "mine",
+  "cost_multiplier": 2.0,
+  "rounding_step": 50.0,
+  "minimum_price": 400.0,
+  "printer": "qalam-pro-400"
+}

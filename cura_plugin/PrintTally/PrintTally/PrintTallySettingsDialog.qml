@@ -29,6 +29,14 @@ UM.Dialog
         filamentProfile.model = profiles
         var idx = profiles.indexOf(s.filament_profile || "")
         filamentProfile.currentIndex = idx > 0 ? idx : 0
+        var profs = JSON.parse(manager.profileChoicesJson)
+        profileBox.model = profs
+        var pi = profs.indexOf(s.profile || "")
+        profileBox.currentIndex = pi > 0 ? pi : 0
+        var prs = JSON.parse(manager.printerChoicesJson)
+        printerBox.model = prs
+        var qi = prs.indexOf(s.printer || "")
+        printerBox.currentIndex = qi > 0 ? qi : 0
         machineRate.valueText = String(s.machine_rate_per_hour)
         printerWatts.valueText = String(s.printer_watts)
         electricityRate.valueText = String(s.electricity_rate_per_kwh)
@@ -55,6 +63,8 @@ UM.Dialog
         if (!valuesValid) { return }
         var s = {
             price_per_kg: parseFloat(pricePerKg.valueText) || 0,
+            profile: profileBox.currentIndex > 0 ? profileBox.currentText : "",
+            printer: printerBox.currentIndex > 0 ? printerBox.currentText : "",
             filament_profile: filamentProfile.currentIndex > 0 ? filamentProfile.currentText : "",
             machine_rate_per_hour: parseFloat(machineRate.valueText) || 0,
             printer_watts: parseFloat(printerWatts.valueText) || 0,
@@ -153,6 +163,19 @@ UM.Dialog
                 unitText: base.currency + "/kWh"
                 labelWidth: base.labelWidth
                 controlWidth: base.controlWidth
+            }
+            UM.Label { text: catalog.i18nc("@label", "Pricing profile (service = custom jobs and lamps, product = kits). A chosen profile replaces the machine, labour and margin fields below."); font: UM.Theme.getFont("default_bold"); width: parent.width; wrapMode: Text.WordWrap }
+            Row
+            {
+                width: parent.width
+                UM.Label { text: catalog.i18nc("@label", "Profile"); width: base.labelWidth; anchors.verticalCenter: parent.verticalCenter }
+                ComboBox { id: profileBox; width: base.controlWidth; model: [] }
+            }
+            Row
+            {
+                width: parent.width
+                UM.Label { text: catalog.i18nc("@label", "Printer"); width: base.labelWidth; anchors.verticalCenter: parent.verticalCenter }
+                ComboBox { id: printerBox; width: base.controlWidth; model: [] }
             }
             UM.Label { text: catalog.i18nc("@label", "Filaments"); font: UM.Theme.getFont("default_bold") }
             Row

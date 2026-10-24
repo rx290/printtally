@@ -15,6 +15,8 @@ class GcodeStats:
     grams: list = field(default_factory=list)       # per extruder, when the slicer reports grams
     metres: list = field(default_factory=list)      # per extruder, when it reports length only (Cura)
     materials: list = field(default_factory=list)   # per extruder names, when reported
+    layer_height: float = 0.0                       # mm, when the G-code says so
+    line_width: float = 0.0                         # mm
 
 
 def _duration_hours(text: str) -> float:
@@ -28,7 +30,22 @@ def _numbers(text: str) -> list:
     return [float(x) for x in re.findall(r"\d+(?:\.\d+)?", text)]
 
 
+def _print_factors(text: str) -> tuple:
+    """(layer height, line width) in mm from the slicer's own comments or its embedded settings; 0 if absent."""
+    lh = re.search(r"^;\s*layer_height\s*=\s*(\d+(?:\.\d+)?)|^;Layer height:\s*(\d+(?:\.\d+)?)", text, re.M)
+    lw = re.search(r"^;\s*(?:line_width|outer_wall_line_width|perimeter_extrusion_width)\s*=\s*(\d+(?:\.\d+)?)"
+                   r"|(?:^|[\s;]|\\n)line_width\s*=\s*(\d+(?:\.\d+)?)", text, re.M)
+    first = lambda m: float(next(g for g in m.groups() if g)) if m else 0.0
+    return first(lh), first(lw)
+
+
 def parse(gcode_text: str) -> GcodeStats:
+    stats = _parse(gcode_text)
+    stats.layer_height, stats.line_width = _print_factors(gcode_text[:20000] + "\n" + gcode_text[-60000:])
+    return stats
+
+
+def _parse(gcode_text: str) -> GcodeStats:
     head_tail = gcode_text[:20000] + "\n" + gcode_text[-60000:]
     m = re.search(r"^;\s*filament used \[g\]\s*=\s*(.+)$", head_tail, re.M)
     if m:

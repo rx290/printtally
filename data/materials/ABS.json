@@ -1,0 +1,27 @@
+{
+  "name": "ABS",
+  "prices_date": "2026-10-25",
+  "unit": "PKR per kg",
+  "density_g_cm3": 1.04,
+  "aliases": [
+    "abs",
+    "generic abs"
+  ],
+  "remas_key": "ABS",
+  "batches": {
+    "default": {
+      "list_price": 3800,
+      "note": "my_price depends on the order size (10 kg: 3,400; more than 10 kg: 3,250)",
+      "my_price": [
+        {
+          "min_kg": 0,
+          "price": 3400
+        },
+        {
+          "min_kg": 10.001,
+          "price": 3250
+        }
+      ]
+    }
+  }
+}

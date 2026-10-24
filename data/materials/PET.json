@@ -1,0 +1,16 @@
+{
+  "name": "PET",
+  "prices_date": "2026-10-25",
+  "unit": "PKR per kg",
+  "density_g_cm3": 1.38,
+  "aliases": [
+    "pet"
+  ],
+  "remas_key": "PET",
+  "batches": {
+    "default": {
+      "my_price": 2500,
+      "list_price": 3000
+    }
+  }
+}
