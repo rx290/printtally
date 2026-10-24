@@ -49,34 +49,59 @@ Omit `--include-design-cost` (and the two design flags become no-ops) for a repe
 
 The slicer appends the G-code file path as the final argument automatically. The breakdown gets appended as a comment block at the end of the sliced file, and also printed to stdout (visible in the slicer's post-processing log).
 
-## Market price
+## Your price and the market price
 
-Every print now shows two numbers: YOUR COST (filament, electricity, machine wear, failure allowance, parts and the other cost lines) and the MARKET PRICE a print shop would charge for the same part. The market price comes from a per-gram rate card (`data/market_rates_pk.json`, the Remas card from October 2026, PKR per gram of finished part). Price = grams x rate + setup charge. PrintTally then shows your margin (market minus your cost) and a suggested price.
+Every print shows how YOUR price is built, then the market (Remas) price for comparison:
 
 ```
-YOUR COST:     Rs 773
-MARKET PRICE:  customer Rs 6,000, reseller Rs 5,000  (under 500 g)
-Margin:        Rs 5,227 vs customer, Rs 4,227 vs reseller
-Suggested:     Rs 6,000  (customer price)
+YOUR COST:     Rs 798
+YOUR PRICE (200 g, 4.00 h, under 500 g):
+    Filament                   Rs 500
+  + Electricity                 Rs 90
+  + Machine wear               Rs 106
+  + Failure allowance           Rs 77
+  + Labour                      Rs 25
+  + Profit                   Rs 1,762
+  = YOUR PRICE             Rs 2,560   (reseller Rs 2,120)
+market (Remas): customer Rs 6,000, reseller Rs 5,000
+Gap to market: Rs 3,440 below Remas (customer)
+Suggested:     Rs 2,550  (your price)
 ```
 
-How to read it:
+The suggested price comes from your own card (rounded to Rs 50). The Remas card (`data/market_rates_pk.json`, October 2026, PKR per gram of finished part) is only a reference. It becomes the suggestion only if you choose `--suggest remas` or `remas_reseller`.
 
-- A per-gram rate looks simple, but it hides machine time, failed prints, labour and profit. Your cost shows what is really behind the number, so you can see where a job is cheap or expensive for you.
-- There are volume tiers: under 500 g, 500-1000 g and above 1000 g. The tier is picked by the part's total grams, and heavier parts get a lower rate.
-- Resellers pay about 15-20% less than customers. Both prices are shown.
-- Exotic materials (PC, nylon, CF-PC) carry a fixed setup charge, added once per material.
-- Material names map onto the card: PETG is "PETG", PLA is "PLA+", TPU is "TPU 95A". Other names match the card by name (ABS, ASA, PET, PP, CF-PETG, ...). Set `"market_material": "CF-PETG"` in a model's `printtally.json` to pick a card entry yourself. If a material is not on the card, PrintTally says so and shows no market price.
+### How a per-gram price is built
 
-Settings (in `settings.json`, a model's `printtally.json` under `"settings"`, or flags):
+A shop quotes one number per gram, but that number has to cover everything it costs to make a gram of part. For one gram:
+
+1. Filament: your price per kg divided by 1000 (Rs 2,500/kg is Rs 2.5 per gram).
+2. Electricity: printer kW x your Rs per unit, spread over the grams printed each hour. A 0.4 mm nozzle makes roughly 10-15 g per hour (`grams_per_hour`, default 12), so one hour of power is shared across those grams.
+3. Machine wear: your machine rate per hour, shared the same way.
+4. Labour: your Rs per hour x the minutes you spend per 100 g (support removal, finishing, packing).
+5. Failure allowance: failed prints are paid for by the good ones, so the sum above is divided by (1 - failure rate). A 10% failure rate adds about 11%.
+6. Profit: the cost is multiplied by `profit_multiplier` (2.0 means the price is twice the cost).
+
+Then the tiers: heavier parts get a lower rate (`tier_discounts`, default 0, 15% and 30% off for under 500 g, 500-1000 g, above 1000 g), resellers pay `reseller_discount` less (default 17%), and exotic materials can carry a fixed `setup_charges` entry. To tune your prices, change one of these numbers and rebuild, or edit the card by hand. If a part prints much slower or faster than 12 g per hour, the per-gram rate is a little off for it; the breakdown above uses the real print time, so compare the two.
+
+### Build and edit your card
+
+```
+python printtally.py build-card                      # writes ~/.config/printtally/my_rates.json
+python printtally.py build-card --profit-multiplier 2.5 --grams-per-hour 10 --tier-discounts 0,0.1,0.25 --out my.json
+```
+
+It needs your material prices in `materials.json` and uses your `settings.json` (electricity, printer watts, machine rate, failure rate). All the numbers above can also sit in `settings.json` (`labour_rate_per_hour`, `labour_min_per_100g`, `grams_per_hour`, `profit_multiplier`, `tier_discounts`, `reseller_discount`, `setup_charges`). The card has the same shape as the Remas card (material -> `customer` and `reseller` rates for three tiers, optional `setup`), so edit any value. It never overwrites an existing card without `--force`. Without a card file, PrintTally builds the same card on the fly from your settings.
+
+### Settings and flags
 
 | Setting | Flag | Meaning |
 |---|---|---|
-| `market_rates_path` | `--rates FILE` (CLI), `--market-rates FILE` (Orca/Prusa script) | another rate card; `$PRINTTALLY_MARKET_RATES` also works |
-| `suggest_mode` | `--suggest customer\|reseller\|multiplier` | how the suggested price is chosen, default customer price rounded to Rs 50 |
-| `cost_multiplier` | `--multiplier N`, `--cost-multiplier N` | used by the multiplier mode (your cost x N) |
+| `my_rates_path` | `--my-rates FILE` (CLI and Orca/Prusa script) | your card; default `my_rates.json` in the config folder |
+| `market_rates_path` | `--rates FILE` (CLI), `--market-rates FILE` (script) | the reference card; `$PRINTTALLY_MARKET_RATES` also works |
+| `suggest_mode` | `--suggest mine\|reseller\|remas\|remas_reseller\|multiplier` | how the suggested price is chosen, default `mine` |
+| `cost_multiplier` | `--multiplier N`, `--cost-multiplier N` | used by the multiplier mode (cost x N) |
 
-For your own electricity, set `electricity_rate_per_kwh` (for example 90 for Rs 90 per unit) and `printer_watts`. The Orca/Prusa script needs `--material PETG` to show the market lines. The Cura plugin shows the same lines in its text and widget, using the material Cura reports or the filament profile you picked.
+Material names map onto the cards: PETG is "PETG", PLA is "PLA+", TPU is "TPU 95A"; other names match by name. Set `"market_material": "CF-PETG"` in a model's `printtally.json` to pick a card entry yourself. A material missing from a card is reported and that price is not shown. Set `electricity_rate_per_kwh` (for example 90 for Rs 90 per unit) and `printer_watts` for real electricity. The Orca/Prusa script needs `--material PETG` for these lines; the Cura plugin shows them in its text and widget.
 
 ## Tests
 

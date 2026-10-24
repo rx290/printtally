@@ -182,16 +182,21 @@ class PrintTallyExtension(QObject, Extension):
             ("Labor", b.post_processing_cost), ("Design", b.design_cost),
             ("Selling costs", b.selling_cost), ("Royalty", b.royalty_cost),
             ("Margin", b.profit_margin), ("Cost to make", b.cost_to_make)]]
-        mk = job.market
-        if mk is not None and job.sellable:
-            if mk.available:
-                rows.append({"label": f"Market price (customer, {mk.tier})", "value": money(mk.customer)})
-                if mk.reseller is not None:
-                    rows.append({"label": "Market price (reseller)", "value": money(mk.reseller)})
-                rows.append({"label": "Margin vs market", "value": money(mk.customer - b.cost_to_make)})
-            suggested, how = market_mod.suggest(mk, b.cost_to_make, job.suggest_mode, job.cost_multiplier)
+        if job.sellable and job.market is not None:
+            cost = sum(v for _, v in job.parts[:-1]) if job.parts else b.cost_to_make
+            if job.mine is not None and job.mine.available:
+                rows += [{"label": label, "value": money(v)} for label, v in job.parts]
+                rows.append({"label": f"Your price ({job.mine.tier})", "value": money(job.mine.customer)})
+                if job.mine.reseller is not None:
+                    rows.append({"label": "Your reseller price", "value": money(job.mine.reseller)})
+            if job.market.available:
+                rows.append({"label": "Market (Remas) customer", "value": money(job.market.customer)})
+                if job.market.reseller is not None:
+                    rows.append({"label": "Market (Remas) reseller", "value": money(job.market.reseller)})
+            suggested, how = market_mod.suggest(job.mine, job.market, cost, job.suggest_mode, job.cost_multiplier)
             rows.append({"label": f"Suggested price ({how})", "value": money(suggested)})
-            job.warnings = list(job.warnings) + [m for m in mk.messages if m not in job.warnings]
+            extra = (job.mine.messages if job.mine else []) + job.market.messages
+            job.warnings = list(job.warnings) + [m for m in extra if m not in job.warnings]
         return json.dumps({"rows": rows, "warnings": job.warnings,
                            "badge": f"{job.stage} · {job.licence}" + (" · DO NOT SELL" if not job.sellable else ""),
                            "sellable": job.sellable, "total": money(b.final_price)})

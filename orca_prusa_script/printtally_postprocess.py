@@ -37,7 +37,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from core.cost_model import CostInputs, calculate_cost, format_breakdown
-from core import market as market_mod
+from core import market as market_mod, shop
 
 WEIGHT_RE = re.compile(r"^;\s*total filament used \[g\]\s*=\s*([\d.]+)", re.MULTILINE)
 TIME_RE = re.compile(
@@ -90,9 +90,9 @@ def format_report(breakdown, inputs, currency="", market_args=None):
                    f"FINAL PRICE:            {breakdown.final_price:.2f}"]
     if market_args is not None:
         report.append("")
-        for line in market_mod.format_market(market_args["market"], breakdown.cost_to_make,
-                                             market_args["mode"], market_args["multiplier"], currency):
-            report.append(line)
+        report += market_mod.format_market(
+            market_args["parts"], market_args["mine"], market_args["remas"], market_args["cost"],
+            market_args["mode"], market_args["multiplier"], currency, inputs.model_weight_g, inputs.print_hours)
     warnings = []
     if inputs.electricity_rate_per_kwh == 0:
         warnings.append("Electricity rate not set: electricity counted as 0.")
@@ -100,6 +100,26 @@ def format_report(breakdown, inputs, currency="", market_args=None):
         warnings.append("Material price is zero: material counted as 0.")
     report += [f"! {warning}" for warning in warnings]
     return "\n".join(report)
+
+
+def _market_args(args, weight_g, print_hours, breakdown):
+    s = {"printer_watts": args.watts, "electricity_rate_per_kwh": args.electricity_rate,
+         "machine_rate_per_hour": args.machine_rate, "failure_rate": args.failure_rate,
+         "labour_rate_per_hour": args.labour_rate, "grams_per_hour": args.grams_per_hour,
+         "profit_multiplier": args.profit_multiplier}
+    card, source = market_mod.my_card(s, {args.material: args.price_per_kg},
+                                      args.my_rates or str(shop.config_dir() / "my_rates.json"))
+    mine = market_mod.market_price({args.material: weight_g}, card=card, label="your rate card")
+    mine.rates_path = source
+    remas = market_mod.market_price({args.material: weight_g}, args.market_rates or None, label="the Remas card")
+    b = breakdown
+    labour = b.post_processing_cost + weight_g * market_mod.cost_per_gram(0.0, s)["labour"]
+    parts = market_mod.price_parts(weight_g, print_hours, b.material_cost, b.electricity_cost,
+                                   b.machine_cost + b.waste_maintenance_cost, b.failure_cost, labour,
+                                   mine.customer, b.hardware_cost) if mine.available else []
+    cost = sum(v for _, v in parts[:-1]) if parts else b.cost_to_make
+    return {"mine": mine, "remas": remas, "parts": parts, "cost": cost, "mode": args.suggest,
+            "multiplier": args.cost_multiplier}
 
 
 def main() -> int:
@@ -124,9 +144,17 @@ def main() -> int:
     parser.add_argument("--material", type=str, default="",
                          help="Material name for the market price (PLA, PETG, ABS, TPU, ...).")
     parser.add_argument("--market-rates", type=str, default="",
-                         help="Market rate card JSON (default: data/market_rates_pk.json).")
-    parser.add_argument("--suggest", choices=("customer", "reseller", "multiplier"), default="customer")
+                         help="Remas reference card JSON (default: data/market_rates_pk.json).")
+    parser.add_argument("--my-rates", type=str, default="",
+                         help="Your own rate card JSON (default: my_rates.json in ~/.config/printtally, "
+                              "else built from these flags).")
+    parser.add_argument("--suggest", choices=("mine", "reseller", "remas", "remas_reseller", "multiplier"),
+                         default="mine")
     parser.add_argument("--cost-multiplier", type=float, default=2.0)
+    parser.add_argument("--failure-rate", type=float, default=0.0)
+    parser.add_argument("--labour-rate", type=float, default=market_mod.CARD_DEFAULTS["labour_rate_per_hour"])
+    parser.add_argument("--grams-per-hour", type=float, default=market_mod.CARD_DEFAULTS["grams_per_hour"])
+    parser.add_argument("--profit-multiplier", type=float, default=market_mod.CARD_DEFAULTS["profit_multiplier"])
     parser.add_argument("gcode_path", type=str)
     args = parser.parse_args()
 
@@ -156,11 +184,9 @@ def main() -> int:
     )
     breakdown = calculate_cost(inputs)
 
+    market_args = None
     if args.material:
-        market_args = {"market": market_mod.market_price({args.material: weight_g}, args.market_rates or None),
-                       "mode": args.suggest, "multiplier": args.cost_multiplier}
-    else:
-        market_args = None
+        market_args = _market_args(args, weight_g, print_hours, breakdown)
     report = format_report(breakdown, inputs, currency=args.currency, market_args=market_args)
     if market_args is None:
         report += "\n! Market price not shown: pass --material (e.g. PETG)."

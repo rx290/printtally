@@ -45,9 +45,12 @@ DEFAULT_SETTINGS = {
     "waste_pct": 0.07,
     "profit_margin_pct": 0.25,
     "filament_diameter_mm": 1.75,
-    "market_rates_path": "",             # empty = the rate card shipped in data/
-    "suggest_mode": "customer",          # customer | reseller | multiplier
+    "market_rates_path": "",             # the Remas reference card; empty = the one shipped in data/
+    "my_rates_path": "",                 # your own card; empty = my_rates.json in the config folder if it exists
+    "suggest_mode": "mine",              # mine | reseller | remas | remas_reseller | multiplier
     "cost_multiplier": 2.0,              # used by the multiplier mode
+    "failure_rate": 0.0,
+    **market_mod.CARD_DEFAULTS,          # labour, grams per hour, profit multiplier, tier discounts, ...
 }
 
 
@@ -165,9 +168,12 @@ class JobPrice:
     stage: str
     sellable: bool
     currency: str = ""
-    market: object = None            # market.MarketPrice, or None if not computed
-    suggest_mode: str = "customer"
+    market: object = None            # Remas reference: market.MarketPrice, or None if not computed
+    mine: object = None              # your own card's price for this part
+    parts: list = field(default_factory=list)   # [(label, amount)] adding up to your price
+    suggest_mode: str = "mine"
     cost_multiplier: float = 2.0
+    hours: float = 0.0
 
 
 def price_job(grams_by_material: dict, print_hours: float, prefs: dict | None = None,
@@ -260,12 +266,28 @@ def price_job(grams_by_material: dict, print_hours: float, prefs: dict | None = 
         royalty_pct=royalty_pct,
         failure_rate=float(prefs.get("failure_rate", s.get("failure_rate", 0.0))),
     )
-    market = market_mod.market_price(
-        market_grams, s.get("market_rates_path") or None,
-        {m: prefs["market_material"] for m in market_grams} if prefs.get("market_material") else None)
-    return JobPrice(calculate_cost(inputs), mlines, plines, warnings, licence, stage, sellable,
-                    s.get("currency", ""), market, str(s.get("suggest_mode", "customer")),
-                    float(s.get("cost_multiplier", 2.0)))
+    names = {m: prefs["market_material"] for m in market_grams} if prefs.get("market_material") else None
+    remas = market_mod.market_price(market_grams, s.get("market_rates_path") or None, names,
+                                    label="the Remas card")
+    prices = {m.name: m.price_per_kg for m in materials.values() if m.price_per_kg > 0}
+    mine, parts = None, []
+    try:
+        card, source = market_mod.my_card(
+            s, prices, s.get("my_rates_path") or str(config_dir() / "my_rates.json"))
+        mine = market_mod.market_price(market_grams, card=card, card_names=names, label="your rate card")
+        mine.rates_path = source
+    except ValueError as exc:
+        warnings.append(str(exc))
+    b = calculate_cost(inputs)
+    if mine is not None and mine.available:
+        labour_per_g = market_mod.cost_per_gram(0.0, s)["labour"]
+        parts = market_mod.price_parts(
+            grams_total, print_hours, b.material_cost, b.electricity_cost,
+            b.machine_cost + b.waste_maintenance_cost, b.failure_cost,
+            b.post_processing_cost + grams_total * labour_per_g, mine.customer, b.hardware_cost)
+    return JobPrice(b, mlines, plines, warnings, licence, stage, sellable,
+                    s.get("currency", ""), remas, mine, parts, str(s.get("suggest_mode", "mine")),
+                    float(s.get("cost_multiplier", 2.0)), print_hours)
 
 
 def format_job(job: JobPrice) -> str:
@@ -282,7 +304,10 @@ def format_job(job: JobPrice) -> str:
     out += [f"Cost to make:  {money(b.cost_to_make)}",
             f"Selling price: {money(b.final_price)}" + ("" if job.sellable else "  (not for sale)")]
     if job.market is not None and job.sellable:
-        out += market_mod.format_market(job.market, b.cost_to_make, job.suggest_mode, job.cost_multiplier, c)
+        cost = sum(v for _, v in job.parts[:-1]) if job.parts else b.cost_to_make
+        grams = sum(g for _, g, _ in job.material_lines)
+        out += market_mod.format_market(job.parts, job.mine, job.market, cost, job.suggest_mode,
+                                        job.cost_multiplier, c, grams, job.hours)
     out += [f"! {w}" for w in job.warnings]
     return "\n".join(out)
 
