@@ -47,6 +47,7 @@ DEFAULT_SETTINGS = {
     "labour_min_per_order": 0.0,         # minutes of handling per order, added once to your price
     "rounding_step": 50.0,               # the suggested price is rounded to this
     "minimum_price": 0.0,                # no suggested price below this (minimum order)
+    "market_cap": 0.0,                   # your price stays under this fraction of the Remas customer price (0 = off)
     "purge_waste_g": 0.0,                # extra filament purged on a multi-colour job (BMCU, AMS), grams
     "batch": {},                         # {"PETG": "original"}: which batch of a material to price from
     "order_kg": {},                      # {"ABS": 12}: order size, picks a quantity tier of my_price
@@ -251,6 +252,7 @@ class JobPrice:
     factors: dict = field(default_factory=dict)  # print factors shown in the header
     rounding_step: float = 50.0
     minimum_price: float = 0.0
+    market_cap: float = 0.0
 
 
 def build_settings(directory: Path | None = None, profile: str | None = None, printer: str | None = None,
@@ -438,6 +440,15 @@ def price_job(grams_by_material: dict, print_hours: float, prefs: dict | None = 
             mine.customer = minimum
             if mine.reseller is not None:
                 mine.reseller = max(mine.reseller, minimum * (1 - float(s["reseller_discount"])))
+        cap = float(s.get("market_cap", 0) or 0)
+        if cap > 0:
+            step = float(s.get("rounding_step", 50.0) or 50.0)
+            new, state, note = market_mod.cap_to_market(mine.customer, remas, cap, real_cost, step)
+            if state:
+                mine.customer, mine.cap_state, mine.cap_note = new, state, note
+                if mine.reseller is not None:
+                    mine.reseller = min(mine.reseller, mine.customer * (1 - float(s["reseller_discount"])))
+                notes.append(note[0].upper() + note[1:] + ".")
         parts = market_mod.price_parts(
             grams_total, print_hours, b.material_cost, b.electricity_cost,
             b.machine_cost + b.waste_maintenance_cost, b.failure_cost,
@@ -449,7 +460,8 @@ def price_job(grams_by_material: dict, print_hours: float, prefs: dict | None = 
                      "payback_per_g": s.get("payback_per_g"), "heads": s.get("heads_in_use"),
                      "kwh": watts * print_hours / 1000.0, "electricity_rate": float(s["electricity_rate_per_kwh"]),
                      "grams": grams_total},
-                    float(s.get("rounding_step", 50.0) or 50.0), float(s.get("minimum_price", 0) or 0))
+                    float(s.get("rounding_step", 50.0) or 50.0), float(s.get("minimum_price", 0) or 0),
+                    float(s.get("market_cap", 0) or 0))
 
 
 def format_job(job: JobPrice) -> str:
@@ -485,7 +497,7 @@ def format_job(job: JobPrice) -> str:
         grams = sum(g for _, g, _ in job.material_lines)
         out += market_mod.format_market(job.parts, job.mine, job.market, cost, job.suggest_mode,
                                         job.cost_multiplier, c, grams, job.hours,
-                                        job.rounding_step, job.minimum_price)
+                                        job.rounding_step, job.minimum_price, job.market_cap)
     out += [f"! {w}" for w in job.warnings]
     return "\n".join(out)
 

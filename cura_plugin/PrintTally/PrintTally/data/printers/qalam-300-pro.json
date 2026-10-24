@@ -6,7 +6,12 @@
   "watts": 150.0,
   "extra_watts_per_head": 0.0,
   "maintenance_per_hour": 10.0,
-  "cost": 250000,
+  "cost": 325000,
   "payback_years": 2,
-  "note": "NOT YET IN SERVICE (arriving soon). Rs 180k plus planned upgrades; selectable for quotes"
+  "bed_mm": [
+    300,
+    300,
+    300
+  ],
+  "note": "NOT YET IN SERVICE (arriving soon), selectable for quotes. Same design, parts and upgrades as the other Qalam; only the bed differs. Cost basis Rs 325,000 is the average of 250k and 400k, so both price the same."
 }

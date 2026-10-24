@@ -27,5 +27,6 @@
   "cost_multiplier": 2.0,
   "rounding_step": 50.0,
   "minimum_price": 0.0,
-  "printer": "quadender-pro-400"
+  "printer": "quadender-pro-400",
+  "market_cap": 0
 }

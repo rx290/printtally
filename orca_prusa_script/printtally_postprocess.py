@@ -93,7 +93,7 @@ def format_report(breakdown, inputs, currency="", market_args=None, header_lines
         report += market_mod.format_market(
             market_args["parts"], market_args["mine"], market_args["remas"], market_args["cost"],
             market_args["mode"], market_args["multiplier"], currency, inputs.model_weight_g, inputs.print_hours,
-            market_args.get("step", 50.0), market_args.get("minimum", 0.0))
+            market_args.get("step", 50.0), market_args.get("minimum", 0.0), market_args.get("cap", 0.0))
     warnings = []
     if inputs.electricity_rate_per_kwh == 0:
         warnings.append("Electricity rate not set: electricity counted as 0.")
@@ -117,13 +117,21 @@ def _market_args(args, weight_g, print_hours, breakdown):
         mine.customer = minimum
     b = breakdown
     labour = b.post_processing_cost + weight_g * market_mod.cost_per_gram(0.0, s)["labour"]
+    cap = float(s.get("market_cap", 0) or 0)
+    if mine.available and cap > 0:
+        real = (b.material_cost + b.electricity_cost + b.machine_cost + b.waste_maintenance_cost + b.failure_cost
+                + labour + b.hardware_cost) * (1.0 + float(s.get("overhead_pct", 0) or 0))
+        new, state, note = market_mod.cap_to_market(mine.customer, remas, cap, real,
+                                                    float(s.get("rounding_step", 50.0) or 50.0))
+        if state:
+            mine.customer, mine.cap_state, mine.cap_note = new, state, note
     parts = market_mod.price_parts(weight_g, print_hours, b.material_cost, b.electricity_cost,
                                    b.machine_cost + b.waste_maintenance_cost, b.failure_cost, labour,
                                    mine.customer, b.hardware_cost) if mine.available else []
     cost = sum(v for _, v in parts[:-1]) if parts else b.cost_to_make
     return {"mine": mine, "remas": remas, "parts": parts, "cost": cost, "mode": args.suggest,
             "multiplier": args.cost_multiplier, "step": float(s.get("rounding_step", 50.0) or 50.0),
-            "minimum": minimum}
+            "minimum": minimum, "cap": cap}
 
 
 def main() -> int:

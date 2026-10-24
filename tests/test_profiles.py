@@ -73,8 +73,8 @@ def test_service_costs_more_than_product_and_shows_remas():
 def test_printer_machine_rates():
     rates = {n: profiles.printer_rates(profiles.load_printer(n))["machine_rate_per_hour"] for n in profiles.list_printers()}
     assert set(rates) == {"qalam-pro-400", "quadender-pro-400", "railu", "qalam-300-pro"}
-    assert rates["qalam-pro-400"] == pytest.approx(400000 / 4800 + 10, abs=0.01)
-    assert rates["qalam-300-pro"] == pytest.approx(250000 / 4800 + 10, abs=0.01)
+    assert rates["qalam-pro-400"] == pytest.approx(325000 / 4800 + 10, abs=0.01)
+    assert rates["qalam-300-pro"] == pytest.approx(325000 / 4800 + 10, abs=0.01)
     assert rates["railu"] == pytest.approx(100000 / 4800 + 10, abs=0.01)
     assert rates["quadender-pro-400"] == pytest.approx(375000 / 4800 + 10, abs=0.01)
 
@@ -91,8 +91,8 @@ def test_quadender_heads_divide_payback_per_gram():
 def test_service_price_orders_big_above_mid_above_small():
     names = ("qalam-pro-400", "qalam-300-pro", "railu")
     per_g = {p: price("service", printer=p).mine.customer / 200 for p in names}
-    assert per_g[names[0]] > per_g[names[1]] > per_g[names[2]]
-    assert 30 <= per_g[names[0]] <= 34 and 24 <= per_g[names[1]] <= 27 and 18 <= per_g[names[2]] <= 21
+    assert per_g[names[0]] == per_g[names[1]] > per_g[names[2]]   # both Qalams share one design and price
+    assert per_g[names[0]] == 28.5 and 18 <= per_g[names[2]] <= 21     # Qalam held at 95% of Remas
     quad = price("service", printer="quadender-pro-400").mine.customer / 200
     assert quad < per_g["railu"]
     assert price("service", printer="quadender-pro-400", heads=1).mine.customer / 200 > quad
@@ -120,7 +120,13 @@ def test_cost_per_gram_comes_from_the_basis():
     assert cost["labour"] == pytest.approx(400 * 20 / 60 / 100)
 
 
-def test_minimum_order_applies_to_a_small_job():
+def _uncapped(config):
+    (config / "profiles").mkdir(parents=True, exist_ok=True)
+    (config / "profiles" / "service.json").write_text('{"market_cap": 0}')
+
+
+def test_minimum_order_applies_to_a_small_job(config):
+    _uncapped(config)
     job = price("service", grams=10.0, hours=0.5)
     assert job.mine.customer == 400
     assert "Minimum order applied" in shop.format_job(job)
@@ -206,3 +212,49 @@ def test_plugin_copies_match_core():
     for kind in ("profiles", "materials", "printers"):
         for f in (REPO / "data" / kind).glob("*.json"):
             assert f.read_text() == (plugin / "data" / kind / f.name).read_text(), f
+
+
+# ---------------------------------------------------------------- under-market cap
+def test_service_200g_petg_stays_under_95_percent_of_remas():
+    job = price("service", printer="qalam-pro-400")
+    assert job.market.customer == 6000
+    assert job.mine.customer <= 0.95 * 6000
+    assert job.mine.customer == 5700
+    out = shop.format_job(job)
+    assert "capped at 95% of Remas" in out and "Suggested:     5,700" in out
+
+
+def test_cap_does_not_apply_to_product():
+    assert shop.build_settings(profile="product")["market_cap"] == 0
+    job = price("product")
+    assert job.mine.cap_state == "" and "capped at" not in shop.format_job(job)
+
+
+def test_both_qalams_price_the_same_for_the_same_job():
+    a, b = profiles.load_printer("qalam-300-pro"), profiles.load_printer("qalam-pro-400")
+    for k in ("cost", "payback_years", "watts", "maintenance_per_hour", "grams_per_hour"):
+        assert a[k] == b[k]
+    assert a["cost"] == 325000 and a["bed_mm"] == [300] * 3 and b["bed_mm"] == [400] * 3
+    pa, pb = price("service", printer="qalam-300-pro"), price("service", printer="qalam-pro-400")
+    assert pa.mine.customer == pb.mine.customer and pa.breakdown.cost_to_make == pb.breakdown.cost_to_make
+
+
+def test_cap_below_cost_holds_price_at_cost_with_warning(config):
+    (config / "profiles").mkdir(parents=True)
+    (config / "profiles" / "service.json").write_text('{"market_cap": 0.1}')
+    job = price("service", printer="qalam-pro-400")
+    assert job.mine.cap_state == "below_cost" and job.mine.customer > 0.1 * 6000
+    out = shop.format_job(job)
+    assert "under-market cap would be below your cost on this printer; quote at cost or pick a cheaper printer" in out
+
+
+def test_material_missing_from_remas_card_is_not_capped():
+    capped, state, _ = market.cap_to_market(9000, market.MarketPrice(missing=["X"]), 0.95, 100)
+    assert (capped, state) == (9000, "")
+    assert market.cap_to_market(9000, None, 0.95, 100)[1] == ""
+
+
+def test_cap_rounds_down_to_the_step():
+    remas = market.MarketPrice(lines=[("PETG", 1, 1.0, None)], customer=6010.0)
+    assert market.cap_to_market(9000, remas, 0.95, 100, 50)[0] == 5700     # 5709.5 rounds down
+    assert market.suggest(None, remas, 100, "multiplier", 90, 50, 0, 0.95)[0] == 5700

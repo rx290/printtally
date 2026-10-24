@@ -1,6 +1,6 @@
 {
   "name": "service",
-  "description": "Custom print jobs and lamps. Fair, payback-based: the chosen printer's payback and wear, 10% failures, 20 min labour per order, 10% overhead; price is about cost x 2 so the extra pays for new printers. Edit any number.",
+  "description": "Custom print jobs and lamps. Fair, payback-based: the chosen printer's payback and wear, 10% failures, 20 min labour per order, 10% overhead; price is about cost x 2 so the extra pays for new printers. Edit any number. The price is kept under market_cap (0.95) x the Remas customer price, never below cost.",
   "failure_rate": 0.1,
   "labour_min_per_order": 20.0,
   "labour_rate_per_hour": 400.0,
@@ -28,5 +28,6 @@
   "cost_multiplier": 2.0,
   "rounding_step": 50.0,
   "minimum_price": 400.0,
-  "printer": "qalam-pro-400"
+  "printer": "qalam-pro-400",
+  "market_cap": 0.95
 }

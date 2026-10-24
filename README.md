@@ -114,6 +114,7 @@ Three things decide a price, and each one is a small file you can list, show and
 **When to use which pricing profile.** Lamps and custom jobs: use `service`. Product lines such as the dino kits: use `product`.
 
 - `service` is a fair, payback-based price. The cost of one gram is worked out from the printer's payback and upkeep, electricity, filament (with 10% waste), 10% failed prints, 20 minutes of labour per order at Rs 400 an hour spread over a typical 100 g order, and 10% overhead for packaging, internet and marketing. The price is that cost times 2, so the extra pays for the next printer. About Rs 11.6 of cost per gram on a mid-priced printer becomes about Rs 24 to 32 to the customer. There is a minimum order of Rs 400. A slow, fine-layer print is never priced below its real time cost times 1.5. The Remas line is always shown next to it as the market reference. Remas is a reference only: the service price is never copied from it.
+  **Under-market cap.** The service price must always stay under the Remas customer price for the same material and weight tier. The profile setting `market_cap` (0.95 for `service`, 0 = off for `product`) is the fraction of the Remas customer price you may charge. It is applied after the minimum order: price = min(price, market_cap x Remas customer), rounded down to the 50 step, and the breakdown says "capped at 95% of Remas". The cap never takes the price below your real cost: if it would, the price stays at cost and PrintTally warns "under-market cap would be below your cost on this printer; quote at cost or pick a cheaper printer". Materials missing from the Remas card are not capped. Example: 200 g PETG, 8 h on the Qalam is Rs 5,720 uncapped and Rs 5,700 capped (Remas 6,000). Change it with `printtally.py profiles set service market_cap=0.9`.
 - `product` keeps the original PrintTally settings exactly as they were (machine Rs 40 an hour, 7% waste, 25% margin, own card at cost x 2 on a 12 g per hour basis, no minimum). It is cheap on purpose, for kits. If you want a product card nearer cost x 1.4, generate one yourself: `printtally.py build-card --profile product --profit-multiplier 1.4 --out product_rates.json`. Your own settings are never overwritten.
 
 ```sh
@@ -130,12 +131,12 @@ Shipped defaults live in `data/profiles/`. Your edits go to `~/.config/printtall
 
 `printtally.py printers list | show NAME | set NAME key=value | use NAME`. A printer file holds its cost, payback years, paid hours per year (2,400), grams per hour per head (12), heads, watts and maintenance per hour (Rs 10). The machine rate is `cost / (payback years x paid hours per year) + maintenance`. To re-derive the rates, change the cost, `payback_years` or `paid_hours_per_year` (hours per day x 365) of a printer and the price follows. Each profile names a default printer (`product`: `quadender-pro-400`, `service`: `qalam-pro-400`); `printers use NAME` or `--printer NAME` overrides it, and `--printer none` uses the profile's own machine values.
 
-The Quadender Pro 400 prints with up to 4 heads at once, so its throughput is 4 x 12 g per hour and the payback per gram is divided by the heads in use. Use `--heads 1` for a single-part job. On the Railu, set `purge_waste_g` for multi-colour jobs, because purged filament is paid for. The Qalam 300 Pro is not yet in service but can be selected.
+The Quadender Pro 400 prints with up to 4 heads at once, so its throughput is 4 x 12 g per hour and the payback per gram is divided by the heads in use. Use `--heads 1` for a single-part job. On the Railu, set `purge_waste_g` for multi-colour jobs, because purged filament is paid for. The Qalam 300 Pro is not yet in service but can be selected. **Qalam pricing note:** the Qalam 300 Pro and the Qalam Pro 400 share one design (same parts and upgrades) and differ only in bed size, so they carry the same cost basis of Rs 325,000 (the average of 250k and 400k), payback, watts and maintenance, and price the same for the same job. The bed (300 or 400 mm cube, field `bed_mm`) is only used for the "fits the bed" information.
 
 | Printer | Cost (Rs) | Payback per g at 1 year | at 2 years | Service price per g (PETG, 200 g, 8 h) |
 |---|---|---|---|---|
-| Qalam Pro 400 | 400,000 | 13.9 | 6.9 | about 32 |
-| Qalam 300 Pro (not yet in service) | 250,000 | 8.7 | 4.3 | about 25 |
+| Qalam Pro 400 (400 mm bed) | 325,000 | 11.3 | 5.6 | 28.6 uncapped, held at 28.5 by the cap |
+| Qalam 300 Pro (300 mm bed, not yet in service) | 325,000 | 11.3 | 5.6 | same as the Qalam Pro 400 |
 | Quadender Pro 400 (4 heads) | 375,000 | 3.3 | 1.6 | about 16 |
 | Railu | 100,000 | 3.5 | 1.7 | about 19 |
 

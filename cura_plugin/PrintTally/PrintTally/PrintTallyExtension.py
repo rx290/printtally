@@ -201,9 +201,12 @@ class PrintTallyExtension(QObject, Extension):
                 rows.append({"label": "Market (Remas) customer", "value": money(job.market.customer)})
                 if job.market.reseller is not None:
                     rows.append({"label": "Market (Remas) reseller", "value": money(job.market.reseller)})
-            suggested, how = market_mod.suggest(job.mine, job.market, cost, job.suggest_mode, job.cost_multiplier)
+            suggested, how = market_mod.suggest(job.mine, job.market, cost, job.suggest_mode, job.cost_multiplier,
+                                                job.rounding_step, job.minimum_price, job.market_cap)
             rows.append({"label": f"Suggested price ({how})", "value": money(suggested)})
             extra = (job.mine.messages if job.mine else []) + job.market.messages
+            if job.mine is not None and job.mine.cap_state == "below_cost":
+                extra = list(extra) + [market_mod.BELOW_COST_WARNING]
             job.warnings = list(job.warnings) + [m for m in extra if m not in job.warnings]
         return json.dumps({"rows": rows, "warnings": job.warnings,
                            "badge": f"{job.stage} · {job.licence}" + (" · DO NOT SELL" if not job.sellable else ""),

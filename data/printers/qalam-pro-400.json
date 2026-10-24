@@ -6,7 +6,12 @@
   "watts": 150.0,
   "extra_watts_per_head": 0.0,
   "maintenance_per_hour": 10.0,
-  "cost": 400000,
+  "cost": 325000,
   "payback_years": 2,
-  "note": "Qalam Pro 400 (400 mm bed), Rs 400,000 after upgrades"
+  "bed_mm": [
+    400,
+    400,
+    400
+  ],
+  "note": "Same design, parts and upgrades as the other Qalam; only the bed differs. Cost basis Rs 325,000 is the average of 250k and 400k, so both price the same."
 }
