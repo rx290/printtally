@@ -113,8 +113,6 @@ def _market_args(args, weight_g, print_hours, breakdown):
     names = {args.material: found.remas_key} if found is not None and found.remas_key else None
     remas = market_mod.market_price({args.material: weight_g}, args.market_rates or None, names, label="the Remas card")
     minimum = float(s.get("minimum_price", 0) or 0)
-    if mine.available and minimum > mine.customer:
-        mine.customer = minimum
     b = breakdown
     labour = b.post_processing_cost + weight_g * market_mod.cost_per_gram(0.0, s)["labour"]
     cap = float(s.get("market_cap", 0) or 0)
@@ -125,6 +123,8 @@ def _market_args(args, weight_g, print_hours, breakdown):
                                                     float(s.get("rounding_step", 50.0) or 50.0))
         if state:
             mine.customer, mine.cap_state, mine.cap_note = new, state, note
+    if mine.available and minimum > mine.customer:
+        mine.customer = minimum
     parts = market_mod.price_parts(weight_g, print_hours, b.material_cost, b.electricity_cost,
                                    b.machine_cost + b.waste_maintenance_cost, b.failure_cost, labour,
                                    mine.customer, b.hardware_cost) if mine.available else []

@@ -125,8 +125,7 @@ def _uncapped(config):
     (config / "profiles" / "service.json").write_text('{"market_cap": 0}')
 
 
-def test_minimum_order_applies_to_a_small_job(config):
-    _uncapped(config)
+def test_minimum_order_applies_to_a_small_job():
     job = price("service", grams=10.0, hours=0.5)
     assert job.mine.customer == 400
     assert "Minimum order applied" in shop.format_job(job)
@@ -258,3 +257,9 @@ def test_cap_rounds_down_to_the_step():
     remas = market.MarketPrice(lines=[("PETG", 1, 1.0, None)], customer=6010.0)
     assert market.cap_to_market(9000, remas, 0.95, 100, 50)[0] == 5700     # 5709.5 rounds down
     assert market.suggest(None, remas, 100, "multiplier", 90, 50, 0, 0.95)[0] == 5700
+
+
+def test_minimum_order_wins_over_the_cap():
+    job = price("service", grams=10.0, hours=0.5)
+    assert job.mine.customer == 400
+    assert "Suggested:     400" in shop.format_job(job)

@@ -434,12 +434,6 @@ def price_job(grams_by_material: dict, print_hours: float, prefs: dict | None = 
         if grams_total > 0 and mine.customer > 0:
             notes.append(f"Cost basis Rs {cpg:,.1f}/g, your price Rs {mine.customer / grams_total:,.1f}/g "
                          f"(about cost x {mine.customer / grams_total / cpg:.1f}); this print's real cost Rs {real_cost:,.0f}.")
-        minimum = float(s.get("minimum_price", 0) or 0)
-        if minimum > 0 and mine.customer < minimum:
-            notes.append(f"Minimum order applied: your price {mine.customer:,.0f} raised to {minimum:,.0f}.")
-            mine.customer = minimum
-            if mine.reseller is not None:
-                mine.reseller = max(mine.reseller, minimum * (1 - float(s["reseller_discount"])))
         cap = float(s.get("market_cap", 0) or 0)
         if cap > 0:
             step = float(s.get("rounding_step", 50.0) or 50.0)
@@ -449,6 +443,12 @@ def price_job(grams_by_material: dict, print_hours: float, prefs: dict | None = 
                 if mine.reseller is not None:
                     mine.reseller = min(mine.reseller, mine.customer * (1 - float(s["reseller_discount"])))
                 notes.append(note[0].upper() + note[1:] + ".")
+        minimum = float(s.get("minimum_price", 0) or 0)
+        if minimum > 0 and mine.customer < minimum:
+            notes.append(f"Minimum order applied: your price {mine.customer:,.0f} raised to {minimum:,.0f}.")
+            mine.customer = minimum
+            if mine.reseller is not None:
+                mine.reseller = max(mine.reseller, minimum * (1 - float(s["reseller_discount"])))
         parts = market_mod.price_parts(
             grams_total, print_hours, b.material_cost, b.electricity_cost,
             b.machine_cost + b.waste_maintenance_cost, b.failure_cost,

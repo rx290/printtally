@@ -229,18 +229,19 @@ def suggest(mine: MarketPrice | None, remas: MarketPrice | None, cost: float, mo
     """(suggested price, how), never below the minimum order, then kept under `cap` x the Remas customer price
     (but never below cost). Default is YOUR card's customer price; Remas is used only when you choose it."""
     price, how = _suggest(mine, remas, cost, mode, multiplier, step)
-    if minimum and price < minimum:
-        price, how = round_to(minimum, step), f"minimum order ({how} was {price:,.0f})"
     if cap:
         if mine is not None and mine.cap_state == "below_cost" and how.startswith("your"):
-            return mine.customer, "at cost: the under-market cap would be below your cost"
-        if mine is not None and mine.cap_state == "capped" and how == "your price":
-            return price, f"your price, capped at {cap * 100:g}% of Remas"
-        new, state, _ = cap_to_market(price, remas, cap, cost, step)
-        if state == "capped":
-            return new, f"{how}, capped at {cap * 100:g}% of Remas"
-        if state == "below_cost":
-            return new, f"{how}, held at cost: the under-market cap would be below your cost"
+            price, how = mine.customer, "at cost: the under-market cap would be below your cost"
+        elif mine is not None and mine.cap_state == "capped" and how == "your price":
+            how = f"your price, capped at {cap * 100:g}% of Remas"
+        else:
+            new, state, _ = cap_to_market(price, remas, cap, cost, step)
+            if state == "capped":
+                price, how = new, f"{how}, capped at {cap * 100:g}% of Remas"
+            elif state == "below_cost":
+                price, how = new, f"{how}, held at cost: the under-market cap would be below your cost"
+    if minimum and price < minimum:
+        return round_to(minimum, step), f"minimum order ({how} was {price:,.0f})"
     return price, how
 
 
