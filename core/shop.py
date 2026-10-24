@@ -23,6 +23,7 @@ import os
 from pathlib import Path
 
 from .cost_model import CostInputs, calculate_cost  # noqa: F401  (plugin copy imports .cost_model too)
+from . import market as market_mod
 
 LICENCES = ("own", "commercial", "personal")
 STAGES = ("prototype", "selling", "retired")
@@ -44,6 +45,9 @@ DEFAULT_SETTINGS = {
     "waste_pct": 0.07,
     "profit_margin_pct": 0.25,
     "filament_diameter_mm": 1.75,
+    "market_rates_path": "",             # empty = the rate card shipped in data/
+    "suggest_mode": "customer",          # customer | reseller | multiplier
+    "cost_multiplier": 2.0,              # used by the multiplier mode
 }
 
 
@@ -161,6 +165,9 @@ class JobPrice:
     stage: str
     sellable: bool
     currency: str = ""
+    market: object = None            # market.MarketPrice, or None if not computed
+    suggest_mode: str = "customer"
+    cost_multiplier: float = 2.0
 
 
 def price_job(grams_by_material: dict, print_hours: float, prefs: dict | None = None,
@@ -175,6 +182,7 @@ def price_job(grams_by_material: dict, print_hours: float, prefs: dict | None = 
     inventory = inventory if inventory is not None else load_inventory()
     warnings, mlines = [], []
     material_cost, grams_total = 0.0, 0.0
+    market_grams = {}
     for name, grams in grams_by_material.items():
         m = match_material(name or prefs.get("material", ""), materials)
         if m is None:
@@ -202,6 +210,7 @@ def price_job(grams_by_material: dict, print_hours: float, prefs: dict | None = 
         material_cost += cost
         grams_total += grams
         mlines.append((m.name, grams, cost))
+        market_grams[m.name] = market_grams.get(m.name, 0.0) + grams
     hw, plines, missing = bom_cost(prefs.get("bom", []), parts)
     if missing:
         warnings.append("No price for " + ", ".join(sorted(set(map(str, missing)))) + " in parts.json: "
@@ -251,8 +260,12 @@ def price_job(grams_by_material: dict, print_hours: float, prefs: dict | None = 
         royalty_pct=royalty_pct,
         failure_rate=float(prefs.get("failure_rate", s.get("failure_rate", 0.0))),
     )
+    market = market_mod.market_price(
+        market_grams, s.get("market_rates_path") or None,
+        {m: prefs["market_material"] for m in market_grams} if prefs.get("market_material") else None)
     return JobPrice(calculate_cost(inputs), mlines, plines, warnings, licence, stage, sellable,
-                    s.get("currency", ""))
+                    s.get("currency", ""), market, str(s.get("suggest_mode", "customer")),
+                    float(s.get("cost_multiplier", 2.0)))
 
 
 def format_job(job: JobPrice) -> str:
@@ -268,6 +281,8 @@ def format_job(job: JobPrice) -> str:
         out.append(f"  {'Failed prints':<24}     {money(b.failure_cost)}")
     out += [f"Cost to make:  {money(b.cost_to_make)}",
             f"Selling price: {money(b.final_price)}" + ("" if job.sellable else "  (not for sale)")]
+    if job.market is not None and job.sellable:
+        out += market_mod.format_market(job.market, b.cost_to_make, job.suggest_mode, job.cost_multiplier, c)
     out += [f"! {w}" for w in job.warnings]
     return "\n".join(out)
 

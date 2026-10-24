@@ -42,6 +42,12 @@ def cmd_price(args):
     stats = gcode_stats.parse(gcode.read_text(errors="ignore"))
     prefs, used = shop.find_preferences(args.model or gcode)
     settings = {**shop.DEFAULT_SETTINGS, **shop._read_json(shop.config_dir() / "settings.json", {})}
+    if args.rates:
+        settings["market_rates_path"] = args.rates
+    if args.suggest:
+        settings["suggest_mode"] = args.suggest
+    if args.multiplier is not None:
+        settings["cost_multiplier"] = args.multiplier
     materials = shop.load_materials()
     grams = gcode_stats.grams_by_material(stats, materials, prefs.get("material", ""),
                                           float(settings.get("filament_diameter_mm", 1.75)))
@@ -74,6 +80,10 @@ def main(argv=None):
     p = sub.add_parser("price", help="price a sliced G-code file")
     p.add_argument("gcode")
     p.add_argument("--model", help="the model file whose printtally.json preferences apply")
+    p.add_argument("--rates", help="market rate card JSON (default: data/market_rates_pk.json)")
+    p.add_argument("--suggest", choices=("customer", "reseller", "multiplier"),
+                   help="how the suggested price is chosen (default: customer price)")
+    p.add_argument("--multiplier", type=float, help="cost multiplier for --suggest multiplier")
     p.set_defaults(func=cmd_price)
     sub.add_parser("init", help="write starter config files").set_defaults(func=cmd_init)
     p = sub.add_parser("sync-sheet", help="sync prices from a published Google Sheet CSV")

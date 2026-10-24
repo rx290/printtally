@@ -1,0 +1,38 @@
+{
+ "source": "Remas 3D Printing rate card (shared by Anas Bhai 3d Print, WhatsApp, forwarded 2026-10-25)",
+ "unit": "PKR per gram of finished part",
+ "tiers": ["regular (<500 g)", "500-1000 g", "above 1000 g"],
+ "fdm": {
+  "PLA+":        {"customer": [30, 25, 20], "reseller": [25, 20, 18]},
+  "PLA+ light":  {"customer": [50, 45, 40], "reseller": null},
+  "PETG":        {"customer": [30, 25, 20], "reseller": [25, 20, 18]},
+  "PET":         {"customer": [50, 45, 40], "reseller": null},
+  "ABS":         {"customer": [35, 30, 25], "reseller": [30, 25, 20]},
+  "ASA":         {"customer": [38, 32, 26], "reseller": [32, 27, 22]},
+  "TPU 75A":     {"customer": [60, 53, 50], "reseller": [50, 45, 42]},
+  "TPU 95A":     {"customer": [55, 48, 45], "reseller": [45, 40, 37]},
+  "PC 3dxtech":  {"customer": [120, 100, 90], "reseller": [105, 92, 85], "setup": 1000},
+  "PC Sunza":    {"customer": [90, 80, 70], "reseller": [60, 55, 50], "setup": 1000},
+  "Nylon PA6/PA12": {"customer": [80, 74, 68], "reseller": [75, 70, 65], "setup": 1500},
+  "PP":          {"customer": [55, 50, 47], "reseller": [50, 45, 40]},
+  "CF-PETG":     {"customer": [40, 35, 33], "reseller": [36, 32, 28]},
+  "CF-ABS":      {"customer": [45, 40, 37], "reseller": [40, 35, 30]},
+  "CF-ASA":      {"customer": [46, 42, 38], "reseller": [42, 36, 32]},
+  "CF-PA6":      {"customer": [60, 54, 48], "reseller": [55, 50, 45]},
+  "CF-PC 3dxtech": {"customer": [140, 120, 100], "reseller": [120, 110, 95], "setup": 2000}
+ },
+ "resin": {
+  "Standard":    {"customer": [60, 55, 45], "reseller": [50, 45, 42]},
+  "ABS-like":    {"customer": [70, 65, 60], "reseller": [60, 55, 50]},
+  "Semi clear matte": {"customer": [80, 75, 70], "reseller": [65, 60, 55]},
+  "High clear glass": {"customer": [90, 83, 78], "reseller": [75, 70, 65]},
+  "Industrial engineering": {"customer": [90, 80, 70], "reseller": [70, 65, 60]},
+  "High temp":   {"customer": [100, 90, 80], "reseller": [80, 75, 70]},
+  "Castable":    {"customer": [300, 260, 240], "reseller": [250, 200, 180]},
+  "Flexible rubber": {"customer": [100, 90, 80], "reseller": [75, 70, 65]},
+  "Flexible elastic": {"customer": [100, 90, 80], "reseller": [75, 70, 65]},
+  "Nylon anti-impact medium": {"customer": [100, 90, 80], "reseller": [80, 75, 70]},
+  "Nylon anti-impact hard": {"customer": [100, 90, 80], "reseller": [80, 75, 70]}
+ },
+ "notes": "Transcribed by Claude from the forwarded image; one stray '66' in the carbon-fibre header row was ignored."
+}

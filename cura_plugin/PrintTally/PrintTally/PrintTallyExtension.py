@@ -19,6 +19,7 @@ from UM.i18n import i18nCatalog
 
 from .cost_model import CostInputs, calculate_cost, format_breakdown
 from . import shop
+from . import market as market_mod
 
 catalog = i18nCatalog("cura")
 
@@ -181,6 +182,16 @@ class PrintTallyExtension(QObject, Extension):
             ("Labor", b.post_processing_cost), ("Design", b.design_cost),
             ("Selling costs", b.selling_cost), ("Royalty", b.royalty_cost),
             ("Margin", b.profit_margin), ("Cost to make", b.cost_to_make)]]
+        mk = job.market
+        if mk is not None and job.sellable:
+            if mk.available:
+                rows.append({"label": f"Market price (customer, {mk.tier})", "value": money(mk.customer)})
+                if mk.reseller is not None:
+                    rows.append({"label": "Market price (reseller)", "value": money(mk.reseller)})
+                rows.append({"label": "Margin vs market", "value": money(mk.customer - b.cost_to_make)})
+            suggested, how = market_mod.suggest(mk, b.cost_to_make, job.suggest_mode, job.cost_multiplier)
+            rows.append({"label": f"Suggested price ({how})", "value": money(suggested)})
+            job.warnings = list(job.warnings) + [m for m in mk.messages if m not in job.warnings]
         return json.dumps({"rows": rows, "warnings": job.warnings,
                            "badge": f"{job.stage} · {job.licence}" + (" · DO NOT SELL" if not job.sellable else ""),
                            "sellable": job.sellable, "total": money(b.final_price)})

@@ -49,6 +49,35 @@ Omit `--include-design-cost` (and the two design flags become no-ops) for a repe
 
 The slicer appends the G-code file path as the final argument automatically. The breakdown gets appended as a comment block at the end of the sliced file, and also printed to stdout (visible in the slicer's post-processing log).
 
+## Market price
+
+Every print now shows two numbers: YOUR COST (filament, electricity, machine wear, failure allowance, parts and the other cost lines) and the MARKET PRICE a print shop would charge for the same part. The market price comes from a per-gram rate card (`data/market_rates_pk.json`, the Remas card from October 2026, PKR per gram of finished part). Price = grams x rate + setup charge. PrintTally then shows your margin (market minus your cost) and a suggested price.
+
+```
+YOUR COST:     Rs 773
+MARKET PRICE:  customer Rs 6,000, reseller Rs 5,000  (under 500 g)
+Margin:        Rs 5,227 vs customer, Rs 4,227 vs reseller
+Suggested:     Rs 6,000  (customer price)
+```
+
+How to read it:
+
+- A per-gram rate looks simple, but it hides machine time, failed prints, labour and profit. Your cost shows what is really behind the number, so you can see where a job is cheap or expensive for you.
+- There are volume tiers: under 500 g, 500-1000 g and above 1000 g. The tier is picked by the part's total grams, and heavier parts get a lower rate.
+- Resellers pay about 15-20% less than customers. Both prices are shown.
+- Exotic materials (PC, nylon, CF-PC) carry a fixed setup charge, added once per material.
+- Material names map onto the card: PETG is "PETG", PLA is "PLA+", TPU is "TPU 95A". Other names match the card by name (ABS, ASA, PET, PP, CF-PETG, ...). Set `"market_material": "CF-PETG"` in a model's `printtally.json` to pick a card entry yourself. If a material is not on the card, PrintTally says so and shows no market price.
+
+Settings (in `settings.json`, a model's `printtally.json` under `"settings"`, or flags):
+
+| Setting | Flag | Meaning |
+|---|---|---|
+| `market_rates_path` | `--rates FILE` (CLI), `--market-rates FILE` (Orca/Prusa script) | another rate card; `$PRINTTALLY_MARKET_RATES` also works |
+| `suggest_mode` | `--suggest customer\|reseller\|multiplier` | how the suggested price is chosen, default customer price rounded to Rs 50 |
+| `cost_multiplier` | `--multiplier N`, `--cost-multiplier N` | used by the multiplier mode (your cost x N) |
+
+For your own electricity, set `electricity_rate_per_kwh` (for example 90 for Rs 90 per unit) and `printer_watts`. The Orca/Prusa script needs `--material PETG` to show the market lines. The Cura plugin shows the same lines in its text and widget, using the material Cura reports or the filament profile you picked.
+
 ## Tests
 
 ```

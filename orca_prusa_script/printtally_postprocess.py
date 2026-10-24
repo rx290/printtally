@@ -37,6 +37,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from core.cost_model import CostInputs, calculate_cost, format_breakdown
+from core import market as market_mod
 
 WEIGHT_RE = re.compile(r"^;\s*total filament used \[g\]\s*=\s*([\d.]+)", re.MULTILINE)
 TIME_RE = re.compile(
@@ -71,7 +72,7 @@ def _parse_print_hours(gcode_text: str) -> float:
     return total_seconds / 3600.0
 
 
-def format_report(breakdown, inputs, currency=""):
+def format_report(breakdown, inputs, currency="", market_args=None):
     """Presentation only; keep calculation and legacy output keys intact."""
     rows = [("Material used:", f"{inputs.model_weight_g:,.1f} g"),
             ("Machine time:", f"{inputs.print_hours:,.2f} h")]
@@ -87,6 +88,11 @@ def format_report(breakdown, inputs, currency=""):
         report += ["Compatibility values:",
                    f"Design cost:            {breakdown.design_cost:.2f}",
                    f"FINAL PRICE:            {breakdown.final_price:.2f}"]
+    if market_args is not None:
+        report.append("")
+        for line in market_mod.format_market(market_args["market"], breakdown.cost_to_make,
+                                             market_args["mode"], market_args["multiplier"], currency):
+            report.append(line)
     warnings = []
     if inputs.electricity_rate_per_kwh == 0:
         warnings.append("Electricity rate not set: electricity counted as 0.")
@@ -115,6 +121,12 @@ def main() -> int:
     parser.add_argument("--marketing-fee-pct", type=float, default=0.0)
     parser.add_argument("--margin-pct", type=float, default=0.25)
     parser.add_argument("--currency", type=str, default="")
+    parser.add_argument("--material", type=str, default="",
+                         help="Material name for the market price (PLA, PETG, ABS, TPU, ...).")
+    parser.add_argument("--market-rates", type=str, default="",
+                         help="Market rate card JSON (default: data/market_rates_pk.json).")
+    parser.add_argument("--suggest", choices=("customer", "reseller", "multiplier"), default="customer")
+    parser.add_argument("--cost-multiplier", type=float, default=2.0)
     parser.add_argument("gcode_path", type=str)
     args = parser.parse_args()
 
@@ -144,7 +156,15 @@ def main() -> int:
     )
     breakdown = calculate_cost(inputs)
 
-    report = format_report(breakdown, inputs, currency=args.currency)
+    if args.material:
+        market_args = {"market": market_mod.market_price({args.material: weight_g}, args.market_rates or None),
+                       "mode": args.suggest, "multiplier": args.cost_multiplier}
+    else:
+        market_args = None
+    report = format_report(breakdown, inputs, currency=args.currency, market_args=market_args)
+    if market_args is None:
+        report += "\n! Market price not shown: pass --material (e.g. PETG)."
+
     header = "; ----- PrintTally cost breakdown -----\n"
     header += "".join(f"; {line}\n" for line in report.splitlines())
     header += "; --------------------------------------\n"
