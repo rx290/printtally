@@ -4,11 +4,11 @@ A print-cost calculator for Ultimaker Cura and OrcaSlicer/PrusaSlicer, built aro
 
 ## Why this isn't one plugin ported twice
 
-OrcaSlicer and PrusaSlicer have no public plugin API for custom UI — confirmed directly by an OrcaSlicer maintainer-side discussion, not assumed. Cura does have a real plugin SDK, with real Extension/QML support for a proper GUI. So this is one shared cost formula with two genuinely different front ends:
+OrcaSlicer and PrusaSlicer have no public plugin API for custom UI. I confirmed that in an OrcaSlicer maintainer discussion instead of assuming it. Cura does have a real plugin SDK, with real Extension/QML support for a proper GUI. So this is one shared cost formula with two genuinely different front ends:
 
-- **`cura_plugin/PrintTally/`** — a real Cura plugin (Extension), not a post-processing script. It adds a **PrintTally** entry to Cura's Extensions menu with a Settings dialog (your rates, persisted in Cura's own preferences) and a live price readout next to the Save-to-Disk button, using Cura's own real print-weight and print-time data as soon as you slice.
-- **`orca_prusa_script/`** — a standalone Python script configured as an OrcaSlicer/PrusaSlicer post-processing script (Print Settings → Output options → Post-processing scripts). It reads the slicer's own G-code footer (filament weight, estimated print time — the exact comment format was confirmed directly against OrcaSlicer's source, not guessed) and runs the same formula.
-- **`core/cost_model.py`** — the one place the actual math lives, fully unit-tested. `cura_plugin/PrintTally/PrintTally/cost_model.py` is a byte-for-byte copy of it (a Cura plugin folder isn't on the same Python path as the repo root once installed, so it can't import the sibling module directly) — `tests/test_plugin_cost_model_matches_core.py` diffs the two files below the docstring on every change, so they can't silently drift apart.
+- **`cura_plugin/PrintTally/`**: a real Cura plugin (Extension), not a post-processing script. It adds a **PrintTally** entry to Cura's Extensions menu with a Settings dialog (your rates, persisted in Cura's own preferences) and a live price readout next to the Save-to-Disk button, using Cura's own real print-weight and print-time data as soon as you slice.
+- **`orca_prusa_script/`**: a standalone Python script configured as an OrcaSlicer/PrusaSlicer post-processing script (Print Settings → Output options → Post-processing scripts). It reads the slicer's own G-code footer (filament weight, estimated print time; the exact comment format was confirmed directly against OrcaSlicer's source, not guessed) and runs the same formula.
+- **`core/cost_model.py`**: the one place the actual math lives, fully unit-tested. `cura_plugin/PrintTally/PrintTally/cost_model.py` is a byte-for-byte copy of it (a Cura plugin folder isn't on the same Python path as the repo root once installed, so it can't import the sibling module directly), `tests/test_plugin_cost_model_matches_core.py` diffs the two files below the docstring on every change, so they can't silently drift apart.
 
 ## The formula
 
@@ -26,15 +26,36 @@ Profit margin = margin % x Subtotal
 Final price   = Subtotal + Profit margin
 ```
 
-**Design cost is a real on/off switch, not just a rate to remember to zero out.** Most print jobs are repeats of a design you already have, and shouldn't carry a design charge — leave "include design cost" unchecked and `design_hours`/`design_rate_per_hour` have zero effect on the price no matter what they're set to. Turn it on only for a genuinely custom design job. Verified by a dedicated test (`test_design_cost_is_zero_when_toggle_is_off_even_with_nonzero_hours_and_rate`) that sets both fields to large nonzero values with the toggle off and asserts the price doesn't move.
+**Design cost is a real on/off switch, not just a rate to remember to zero out.** Most print jobs are repeats of a design you already have, and shouldn't carry a design charge. Leave "include design cost" unchecked and `design_hours`/`design_rate_per_hour` have zero effect on the price no matter what they're set to. Turn it on only for a genuinely custom design job. Verified by a dedicated test (`test_design_cost_is_zero_when_toggle_is_off_even_with_nonzero_hours_and_rate`) that sets both fields to large nonzero values with the toggle off and asserts the price doesn't move.
 
-One judgment call worth flagging: the source material describes maintenance cost as "5-10% of total cost," but at the point that line item is calculated, the full total isn't computed yet (labor, design, selling costs, and margin come after it). Applying a percentage to the *already-final* total would mean margin compounding on margin, so this implementation scopes the waste percentage to the three direct production costs (material, printing, electricity) instead. If you want it scoped differently, `core/cost_model.py` is a plain function — change `production_subtotal` to whatever base you want the percentage applied to.
+One judgment call worth flagging: the source material describes maintenance cost as "5-10% of total cost," but at the point that line item is calculated, the full total isn't computed yet (labor, design, selling costs, and margin come after it). Applying a percentage to the *already-final* total would mean margin compounding on margin, so this implementation scopes the waste percentage to the three direct production costs (material, printing, electricity) instead. If you want it scoped differently, `core/cost_model.py` is a plain function, change `production_subtotal` to whatever base you want the percentage applied to.
+
+## Example
+
+Here's a real run of the OrcaSlicer script on a 120 g print that takes 6.5 hours. The rates are my own local ones in rupees (2500 per kg of filament, 40 per machine hour, a 250 W printer, 12 per kWh). The script doesn't care about currency, it just multiplies. No labor or design charge here because it's a repeat print.
+
+```
+printtally_postprocess.py --price-per-kg 2500 --machine-rate 40 --watts 250 --electricity-rate 12 --waste-pct 0.07 --margin-pct 0.25 part.gcode
+
+Material cost:          300.00
+Printing cost:          260.00
+Electricity cost:       19.50
+Maintenance cost:       40.57
+Labor cost:             0.00
+Design cost:            0.00
+Selling costs:          0.00
+Subtotal:               620.07
+Profit margin:          155.02
+FINAL PRICE:            775.08
+```
+
+Filament is less than 40% of that price. That's the whole reason I wrote this.
 
 ## Installing the Cura plugin
 
 Copy `cura_plugin/PrintTally/PrintTally/` into your Cura plugins folder (Help → Show Configuration Folder → `plugins/PrintTally/PrintTally/`, so `plugin.json` ends up double-nested the way Cura expects) and restart Cura. You'll get a **PrintTally** entry under the Extensions menu:
 
-- **Extensions → PrintTally → Settings…** — set your rates once (material, machine, electricity, waste %, labor, design cost toggle, packaging/shipping/marketing, profit margin). Saved in Cura's own preferences.
+- **Extensions → PrintTally → Settings…**: set your rates once (material, machine, electricity, waste %, labor, design cost toggle, packaging/shipping/marketing, profit margin). Saved in Cura's own preferences.
 - Slice a model and a live price shows up next to the Save-to-Disk button, pulling Cura's own real weight/print-time estimate. Hover it for the full breakdown, click it to reopen Settings.
 
 ## Using the OrcaSlicer/PrusaSlicer script
@@ -60,4 +81,4 @@ python3 -m venv .venv && .venv/bin/pip install pytest
 
 ## Status
 
-Core formula and both adapters built and tested (2026-08-18), extended with a seventh factor (design cost, checkbox-gated) the same day. Rebuilt as a real Cura Extension plugin with a settings dialog and live price widget (2026-08-26), replacing the earlier post-processing-script approach — confirmed working end-to-end in a real Cura 5.13 installation, including catching and fixing two real QML bugs (`UM.ToolTip` needing the `UM 1.5` import, and `UM.Dialog`'s default `contents` property rejecting a non-visual `I18nCatalog` child) via Cura's own log, not guesswork. Not yet verified against a real OrcaSlicer CLI slice end-to-end (the CLI slicing in this dev environment needs a properly-typed printer/process profile pair that wasn't readily available — the footer-parsing logic is instead verified against OrcaSlicer's actual source code strings). If you hit a parsing error against a real slice, the exact real footer line is the thing to check first.
+Core formula and both adapters built and tested (2026-08-18), extended with a seventh factor (design cost, checkbox-gated) the same day. Rebuilt as a real Cura Extension plugin with a settings dialog and live price widget (2026-08-26), replacing the earlier post-processing-script approach. Confirmed working end-to-end in a real Cura 5.13 installation, including catching and fixing two real QML bugs (`UM.ToolTip` needing the `UM 1.5` import, and `UM.Dialog`'s default `contents` property rejecting a non-visual `I18nCatalog` child) via Cura's own log, not guesswork. Not yet verified against a real OrcaSlicer CLI slice end-to-end (the CLI slicing in this dev environment needs a properly-typed printer/process profile pair that wasn't readily available, the footer-parsing logic is instead verified against OrcaSlicer's actual source code strings). If you hit a parsing error against a real slice, the exact real footer line is the thing to check first.
