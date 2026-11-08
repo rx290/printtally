@@ -33,6 +33,8 @@ DEFAULT_SETTINGS = {
     "night_share": 0.0,                     # share of the print time on the night rate: 0 day, 1 night, 0.5 half
     "night_price_multiplier": 1.0,          # your price x this for a night print (Rs 35/g night vs 21/g day = 1.67)
     "min_margin": 0.25,                     # cost floor: no price below real cost x (1 + this), market cap or not
+    "default_customer": "customer",         # customer profile when none is chosen (customers.json)
+    "customers": {},                        # your own customer profiles, same shape as customers.json
     "waste_pct": 0.07,
     "profit_margin_pct": 0.25,
     "filament_diameter_mm": 1.75,
@@ -249,6 +251,47 @@ def bom_cost(bom: list, parts: dict) -> tuple[float, list, list]:
     return total, lines, missing
 
 
+# ------------------------------------------------------------------ customers
+CUSTOMER_KEYS = ("min_per_g", "max_per_g", "discount_pct")
+
+
+def load_customers(directory: Path | None = None, settings: dict | None = None) -> dict:
+    """{name: {"description", "min_per_g", "max_per_g", "discount_pct"}}: the shipped customers.json, then yours
+    in the config folder, then "customers" in settings.json (later wins, key by key)."""
+    out = {}
+    sources = [_read_json(profiles_mod.data_dir() / "customers.json", {}),
+               _read_json((directory or config_dir()) / "customers.json", {}),
+               (settings or {}).get("customers") or {}]
+    for raw in sources:
+        for name, spec in (raw.items() if isinstance(raw, dict) else ()):
+            if not name.startswith("_") and isinstance(spec, dict):
+                out[name] = {**out.get(name, {}), **spec}
+    return out
+
+
+def apply_customer(price: float, grams: float, customer: dict, step: float = 50.0) -> tuple[float, list]:
+    """(price, notes) after a customer profile: discount, then at least min_per_g, then at most max_per_g
+    (rounded up for a minimum, down for a cap). The cost floor is applied after this, by the caller."""
+    import math
+    notes, step = [], step or 50.0
+    discount = float(customer.get("discount_pct", 0) or 0)
+    if discount > 0:
+        new = price * (1 - discount)
+        notes.append(f"Customer discount {discount * 100:g}%: {price:,.0f} -> {new:,.0f}.")
+        price = new
+    low = float(customer.get("min_per_g", 0) or 0) * grams
+    if low > 0 and price < low - 1e-9:
+        new = math.ceil(low / step - 1e-9) * step
+        notes.append(f"Customer minimum Rs {float(customer['min_per_g']):g}/g: {price:,.0f} raised to {new:,.0f}.")
+        price = new
+    high = float(customer.get("max_per_g", 0) or 0) * grams
+    if high > 0 and price > high + 1e-9:
+        new = math.floor(high / step + 1e-9) * step
+        notes.append(f"Customer cap Rs {float(customer['max_per_g']):g}/g: {price:,.0f} lowered to {new:,.0f}.")
+        price = new
+    return price, notes
+
+
 # ---------------------------------------------------------------- preferences
 def find_preferences(model_path) -> tuple[dict, list]:
     """(merged preferences, files used) for a model: printtally.json files from the farthest folder down to
@@ -274,7 +317,7 @@ PREF_TYPES = {   # printtally.json keys and their JSON types (docs/printtally.sc
     "profit_margin_pct": "number", "failure_rate": "number", "purge_waste_g": "number",
     "post_processing_hours": "number", "include_design_cost": "boolean", "design_hours": "number",
     "packaging_cost": "number", "shipping_cost": "number", "marketing_fee_pct": "number", "night_share": "number",
-    "product": "string", "copies": "object", "skip": "array", "estimate": "object",
+    "product": "string", "copies": "object", "skip": "array", "estimate": "object", "customer": "string",
 }
 _JSON_TYPES = {"string": (str,), "integer": (int,), "number": (int, float), "boolean": (bool,),
                "array": (list,), "object": (dict,)}
@@ -327,6 +370,7 @@ class JobPrice:
     estimated: bool = False          # a fallback price stood in somewhere: the price is an estimate
     cost_floor: float = 0.0          # no price below this: real cost x (1 + min_margin)
     min_margin: float = 0.25
+    customer: str = ""               # the customer profile this price used
 
     @property
     def sale_price(self):
@@ -543,6 +587,13 @@ def price_job(grams_by_material: dict, print_hours: float, prefs: dict | None = 
         warnings.append(str(exc))
     b = calculate_cost(inputs)
     min_margin = max(float(s.get("min_margin", 0.25) or 0), 0.0)
+    customer_name = str(prefs.get("customer") or s.get("customer") or s.get("default_customer") or "customer")
+    customers = load_customers(None, s)
+    cust = customers.get(customer_name)
+    if cust is None:
+        warnings.append(f"Unknown customer profile '{customer_name}': no customer rules applied. "
+                        f"Profiles: {', '.join(sorted(customers)) or 'none'}.")
+        customer_name = customer_name + " (unknown)"
     cost_floor = b.cost_to_make * (1.0 + min_margin)
     if mine is not None and mine.available:
         labour_per_g = market_mod.cost_per_gram(0.0, s)["labour"]
@@ -585,7 +636,17 @@ def price_job(grams_by_material: dict, print_hours: float, prefs: dict | None = 
             mine.customer = minimum
             if mine.reseller is not None:
                 mine.reseller = max(mine.reseller, minimum * (1 - float(s["reseller_discount"])))
+        step = float(s.get("rounding_step", 50.0) or 50.0)
+        if cust is not None:
+            mine.customer, cnotes = apply_customer(mine.customer, grams_total, cust, step)
+            notes += cnotes
+            if mine.reseller is not None:
+                mine.reseller = min(mine.reseller, mine.customer)
         cost_floor = real_cost * (1.0 + min_margin)
+        cust_cap = float((cust or {}).get("max_per_g", 0) or 0) * grams_total
+        if cust_cap > 0 and cost_floor > cust_cap + 1e-9:
+            warnings.append(f"Selling at cost floor, above friend cap: Rs {float(cust['max_per_g']):g}/g "
+                            f"({cust_cap:,.0f}) is under this print's cost floor ({cost_floor:,.0f}).")
         if mine.customer < cost_floor - 1e-9:
             raised = market_mod.raise_to_floor(cost_floor, float(s.get("rounding_step", 50.0) or 50.0))
             notes.append(f"Raised to cost floor: your price {mine.customer:,.0f} is under this print's real cost "
@@ -605,14 +666,15 @@ def price_job(grams_by_material: dict, print_hours: float, prefs: dict | None = 
                      "kwh": watts * print_hours / 1000.0, "electricity_rate": float(s["electricity_rate_per_kwh"]),
                      "grams": grams_total},
                     float(s.get("rounding_step", 50.0) or 50.0), float(s.get("minimum_price", 0) or 0),
-                    float(s.get("market_cap", 0) or 0), estimated, cost_floor, min_margin)
+                    float(s.get("market_cap", 0) or 0), estimated, cost_floor, min_margin, customer_name)
 
 
 def format_job(job: JobPrice) -> str:
     c = job.currency
     money = (lambda v: f"{c}{v:,.2f}") if c else (lambda v: f"{v:,.2f}")
     b = job.breakdown
-    out = [f"Profile: {job.profile or 'none'}   Stage: {job.stage}   Licence: {job.licence}"
+    out = [f"Profile: {job.profile or 'none'}   Customer: {job.customer or 'none'}   Stage: {job.stage}   "
+           f"Licence: {job.licence}"
            + ("" if job.sellable else "   ** DO NOT SELL **")
            + ("   ** ESTIMATE: fallback prices used, see the ! lines **" if job.estimated else "")]
     f = job.factors or {}
@@ -675,6 +737,8 @@ def price_from_slicer(weights_g: list, names: list, print_hours: float, model_pa
     for key in ("packaging_cost", "shipping_cost", "post_processing_hours", "include_design_cost", "design_hours"):
         if key in plugin_settings and key not in prefs and settings.get("profile_name") == "plugin settings":
             prefs[key] = plugin_settings[key]
+    if plugin_settings.get("customer"):          # the customer picked in the plugin's dropdown
+        prefs["customer"] = str(plugin_settings["customer"])
     # a filament profile picked in the plugin (PETG A-grade, ABS...) overrides the slicer's material names
     chosen = str(plugin_settings.get("filament_profile", "") or "")
     chosen_name = parse_choice(chosen)[0]

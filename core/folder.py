@@ -26,7 +26,7 @@ PRINTABLE = (".gcode", ".stl", ".3mf")
 SKIP_DIRS = {"reference", "references", "ref", "refs", "docs", "doc", "renders", "images", "__pycache__"}
 ESTIMATE_DEFAULTS = {"shell_mm": 1.2, "infill": 0.15, "grams_per_hour": 15.0}
 CSV_FIELDS = ["Product", "Folder", "Files", "Source", "Material", "Grams", "Print hours", "Unit cost",
-              "Parts cost / unit", "Price", "Remas price", "Licence", "Stage", "Profile", "Printer",
+              "Parts cost / unit", "Price", "Remas price", "Licence", "Stage", "Profile", "Customer", "Printer",
               "Estimate", "Warnings"]
 
 
@@ -147,7 +147,7 @@ def _sources(files: list) -> list:
 
 # --------------------------------------------------------------------- pricing
 def price_product(target: Path, label: str = "", profile=None, printer=None, heads=None, material=None,
-                  night_share=None, directory=None, materials=None, parts=None) -> dict:
+                  night_share=None, directory=None, materials=None, parts=None, customer=None) -> dict:
     """One CSV row for a product folder (or a single file)."""
     files = [target] if target.is_file() else _printables(target)
     prefs, _used = shop.find_preferences((target if target.is_file() else target / "_product_"))
@@ -155,6 +155,8 @@ def price_product(target: Path, label: str = "", profile=None, printer=None, hea
         prefs["material"] = material
     if night_share is not None:
         prefs["night_share"] = night_share
+    if customer:
+        prefs["customer"] = customer
     settings = shop.build_settings(directory, profile, printer, heads, prefs)
     materials = materials if materials is not None else shop.load_materials(directory)
     parts = parts if parts is not None else shop.load_parts(directory)
@@ -219,6 +221,7 @@ def price_product(target: Path, label: str = "", profile=None, printer=None, hea
         "Licence": job.licence + ("" if job.sellable else " (DO NOT SELL)"),
         "Stage": job.stage,
         "Profile": job.profile,
+        "Customer": job.customer,
         "Printer": job.factors.get("printer", ""),
         "Estimate": "; ".join(estimate),
         "Warnings": " | ".join(problems + job.warnings),

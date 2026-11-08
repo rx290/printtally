@@ -9,6 +9,9 @@
     python printtally.py profiles list | show NAME | set NAME key=value | use NAME
     python printtally.py printers list | show NAME | set NAME key=value | use NAME
     python printtally.py materials                     list material profiles, batches and prices
+    python printtally.py price model.gcode --customer friends
+                                                       price for a friend (under Rs 20/g) or a customer (at least Rs 20/g)
+    python printtally.py customers                     list customer profiles
     python printtally.py parts                         list lights and hardware (BOM) with local prices
     python printtally.py price-folder ~/lamp-print-packs/home/01* --out home.csv
                                                        price whole packs (STL/3MF estimated, G-code exact) into a CSV
@@ -58,6 +61,8 @@ def cmd_price(args):
     if args.my_rates:
         settings["my_rates_path"] = args.my_rates
     _apply_night(args, prefs)
+    if args.customer:
+        prefs["customer"] = args.customer
     if args.suggest:
         settings["suggest_mode"] = args.suggest
     if args.multiplier is not None:
@@ -98,10 +103,19 @@ def cmd_prefs(args):
         print("OK")
 
 
+def cmd_customers(_args):
+    settings = shop.build_settings()
+    default = settings.get("default_customer", "customer")
+    for name, spec in shop.load_customers(None, settings).items():
+        rules = ", ".join(f"{k} {spec[k]:g}" for k in shop.CUSTOMER_KEYS if float(spec.get(k, 0) or 0))
+        print(f"{name:<12}{'*' if name == default else ' '} {rules or 'no rules':<34} {spec.get('description', '')}")
+    print("(* = default_customer in settings.json; add your own in customers.json in your config folder)")
+
+
 def cmd_price_folder(args):
     night = 1.0 if args.night else args.night_share
     rows = folder.price_folders(args.paths, args.out, profile=args.profile, printer=args.printer, heads=args.heads,
-                                material=args.material, night_share=night)
+                                material=args.material, night_share=night, customer=args.customer)
     if not rows:
         raise ValueError("No STL, 3MF or G-code files found in " + ", ".join(args.paths))
     for r in rows:
@@ -235,6 +249,9 @@ def _selectors(p, with_material):
     p.add_argument("--printer", help="printer whose payback, watts and speed set the machine rate; see `printers list`")
     p.add_argument("--heads", type=int, help="heads printing at once on a multi-head printer (1 for a single part)")
     if with_material:
+        p.add_argument("--customer", metavar="NAME",
+                       help="customer profile: customer (default, at least Rs 20/g), friends (under Rs 20/g), none, "
+                            "or your own; see `customers`")
         p.add_argument("--night", action="store_true",
                        help="the print runs at night: electricity at electricity_rate_night_per_kwh")
         p.add_argument("--night-share", type=float, metavar="0-1",
@@ -282,6 +299,8 @@ def main(argv=None):
         p.add_argument("--heads", type=int, help="(printers show) heads in use")
         p.set_defaults(func=fn)
     sub.add_parser("materials", help="list material profiles, batches and prices").set_defaults(func=cmd_materials)
+    sub.add_parser("customers", help="list customer profiles (friends, customer, ...)").set_defaults(
+        func=cmd_customers)
     sub.add_parser("parts", help="list lights and hardware with prices (BOM parts)").set_defaults(func=cmd_parts)
     sub.add_parser("init", help="write starter config files").set_defaults(func=cmd_init)
     p = sub.add_parser("sync-sheet", help="sync prices from a published Google Sheet CSV")

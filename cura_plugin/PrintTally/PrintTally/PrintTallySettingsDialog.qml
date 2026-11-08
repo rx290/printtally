@@ -33,6 +33,10 @@ UM.Dialog
         profileBox.model = profs
         var pi = profs.indexOf(s.profile || "")
         profileBox.currentIndex = pi > 0 ? pi : 0
+        var cus = JSON.parse(manager.customerChoicesJson)
+        customerBox.model = cus
+        var ci = cus.indexOf(s.customer || "")
+        customerBox.currentIndex = ci > 0 ? ci : 0
         var prs = JSON.parse(manager.printerChoicesJson)
         printerBox.model = prs
         var qi = prs.indexOf(s.printer || "")
@@ -65,6 +69,7 @@ UM.Dialog
             price_per_kg: parseFloat(pricePerKg.valueText) || 0,
             profile: profileBox.currentIndex > 0 ? profileBox.currentText : "",
             printer: printerBox.currentIndex > 0 ? printerBox.currentText : "",
+            customer: customerBox.currentIndex > 0 ? customerBox.currentText : "",
             filament_profile: filamentProfile.currentIndex > 0 ? filamentProfile.currentText : "",
             machine_rate_per_hour: parseFloat(machineRate.valueText) || 0,
             printer_watts: parseFloat(printerWatts.valueText) || 0,
@@ -176,6 +181,12 @@ UM.Dialog
                 width: parent.width
                 UM.Label { text: catalog.i18nc("@label", "Printer"); width: base.labelWidth; anchors.verticalCenter: parent.verticalCenter }
                 ComboBox { id: printerBox; width: base.controlWidth; model: [] }
+            }
+            Row
+            {
+                width: parent.width
+                UM.Label { text: catalog.i18nc("@label", "Customer"); width: base.labelWidth; anchors.verticalCenter: parent.verticalCenter }
+                ComboBox { id: customerBox; width: base.controlWidth; model: [] }
             }
             UM.Label { text: catalog.i18nc("@label", "Filaments"); font: UM.Theme.getFont("default_bold") }
             Row

@@ -174,3 +174,13 @@ def test_cli_prefs_shows_merged_files(tmp_path, config):
     assert r.returncode == 0, r.stderr
     assert "lamp.stl.printtally.json" in r.stdout and "personal" in r.stdout and "selling" in r.stdout
     assert r.stdout.strip().endswith("OK")
+
+
+def test_price_folder_customer_flag(tmp_path, config):
+    write_binary_stl(tmp_path / "part.stl", 40)
+    (tmp_path / "printtally.json").write_text(json.dumps({"material": "PETG"}))
+    friends = folder.price_product(tmp_path, "p", profile="service", customer="friends")
+    default = folder.price_product(tmp_path, "p", profile="service")
+    assert friends["Customer"] == "friends" and default["Customer"] == "customer"
+    assert friends["Price"] <= 20 * friends["Grams"] or "above friend cap" in friends["Warnings"]
+    assert default["Price"] >= 20 * default["Grams"]

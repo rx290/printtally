@@ -33,6 +33,7 @@ DEFAULT_SETTINGS = {
     "price_per_kg": 2500.0,
     "profile": "",                    # "" = your default profile (settings.json), else service / product
     "printer": "",                    # "" = the profile's or your default printer
+    "customer": "",                   # "" = default_customer (customer), else friends / none / your own
     "filament_profile": "",           # "" = from Cura's material names; else a materials.json profile
     "machine_rate_per_hour": 40.0,
     "printer_watts": 250.0,
@@ -255,6 +256,14 @@ class PrintTallyExtension(QObject, Extension):
             return json.dumps(["(default)"] + profiles_mod.list_profiles())
         except Exception:
             return json.dumps(["(default)"])
+
+    @pyqtProperty(str, notify=settingsChanged)
+    def customerChoicesJson(self) -> str:
+        """["(default)", customer profile names...] for the customer dropdown."""
+        try:
+            return json.dumps(["(default)"] + list(shop.load_customers()))
+        except Exception:
+            return json.dumps(["(default)", "customer", "friends"])
 
     @pyqtProperty(str, notify=settingsChanged)
     def printerChoicesJson(self) -> str:

@@ -1,0 +1,21 @@
+{
+  "_about": "Customer profiles, chosen before pricing a job (--customer, the Cura dropdown, \"customer\" in printtally.json, or default_customer in settings.json). They act on your price after the market cap and minimum order: discount_pct first, then min_per_g / max_per_g (Rs per gram of the job). The cost floor (min_margin) always wins. Add your own in ~/.config/printtally/customers.json or under \"customers\" in settings.json.",
+  "customer": {
+    "description": "Everyone else: your rate card price, never under Rs 20 per gram.",
+    "min_per_g": 20,
+    "max_per_g": 0,
+    "discount_pct": 0
+  },
+  "friends": {
+    "description": "Friends: the same price, kept under Rs 20 per gram (never under the cost floor).",
+    "min_per_g": 0,
+    "max_per_g": 20,
+    "discount_pct": 0
+  },
+  "none": {
+    "description": "No customer rules: the plain profile price (kits, wholesale, checks).",
+    "min_per_g": 0,
+    "max_per_g": 0,
+    "discount_pct": 0
+  }
+}

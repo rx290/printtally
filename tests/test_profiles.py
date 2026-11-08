@@ -21,8 +21,9 @@ def config(tmp_path, monkeypatch):
 
 
 def price(profile, grams=200.0, hours=8.0, material="PETG", printer=None, prefs=None, heads=None):
+    prefs = {"customer": "none", **(prefs or {})}     # the plain profile price: no customer rules on top
     s = shop.build_settings(profile=profile, printer=printer, heads=heads, prefs=prefs)
-    return shop.price_job({material: grams}, hours, prefs or {}, s, shop.load_materials(), parts={}, inventory={})
+    return shop.price_job({material: grams}, hours, prefs, s, shop.load_materials(), parts={}, inventory={})
 
 
 def test_both_profiles_load():
