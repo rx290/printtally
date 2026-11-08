@@ -291,3 +291,46 @@ def test_night_without_a_night_rate_warns_and_uses_the_day_rate(lib):
                          settings={"electricity_rate_per_kwh": 40, "printer_watts": 200}, materials=lib, parts={})
     assert job.breakdown.electricity_cost == pytest.approx(80)
     assert any(w.startswith("Night rate not set") for w in job.warnings)
+
+
+# ---------------------------------------------------------------- cost floor and night price
+def _real_cost(job):
+    return sum(v for _, v in job.parts[:-1])
+
+
+def test_egg_tray_is_never_priced_under_cost():
+    # 81 g, 5.4 h on the product profile used to come out at Rs 850 against a real cost of about Rs 946
+    job = shop.price_job({"PETG": 81.1}, 5.41, {}, shop.build_settings(profile="product"))
+    assert job.mine.customer >= job.cost_floor >= _real_cost(job) * 1.25 - 1
+    assert job.mine.customer % 50 == 0 and job.mine.reseller <= job.mine.customer
+    assert any(n.startswith("Raised to cost floor") for n in job.notes)
+    text = shop.format_job(job)
+    suggested = float(text.split("Suggested:")[1].split()[0].replace(",", ""))
+    assert suggested >= job.cost_floor
+
+
+def test_cost_floor_wins_over_the_market_cap():
+    s = {**shop.build_settings(profile="service", printer="qalam-pro-400"), "market_cap": 0.1}
+    job = shop.price_job({"PETG": 200.0}, 10.0, {}, s)
+    assert job.mine.customer >= job.cost_floor > 0.1 * job.market.customer
+    assert "raised to cost floor" in shop.format_job(job)
+
+
+def test_min_margin_is_a_setting():
+    s = shop.build_settings(profile="product")
+    low = shop.price_job({"PETG": 81.1}, 5.41, {}, {**s, "min_margin": 0.0})
+    high = shop.price_job({"PETG": 81.1}, 5.41, {}, {**s, "min_margin": 0.5})
+    assert low.mine.customer < high.mine.customer and high.mine.customer >= high.cost_floor
+
+
+def test_night_price_multiplier(lib):
+    s = {**shop.build_settings(profile="product", printer="none"), "electricity_rate_night_per_kwh": 90,
+         "night_price_multiplier": 1.6, "min_margin": 0.0}
+    day = shop.price_job({"PETG": 200.0}, 5.0, {}, s, lib, {})
+    night = shop.price_job({"PETG": 200.0}, 5.0, {"night_share": 1}, s, lib, {})
+    half = shop.price_job({"PETG": 200.0}, 5.0, {"night_share": 0.5}, s, lib, {})
+    off = shop.price_job({"PETG": 200.0}, 5.0, {"night_share": 1}, {**s, "night_price_multiplier": 1.0}, lib, {})
+    assert night.mine.customer == pytest.approx(day.mine.customer * 1.6)
+    assert half.mine.customer == pytest.approx(day.mine.customer * 1.3)
+    assert off.mine.customer == pytest.approx(day.mine.customer)
+    assert any(n.startswith("Night price") for n in night.notes)

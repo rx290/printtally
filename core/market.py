@@ -225,9 +225,23 @@ def cap_to_market(price: float, remas: MarketPrice | None, cap: float, cost: flo
 # ------------------------------------------------------------------- suggestions
 def suggest(mine: MarketPrice | None, remas: MarketPrice | None, cost: float, mode: str = "mine",
             multiplier: float = 2.0, step: float = 50.0, minimum: float = 0.0,
-            cap: float = 0.0) -> tuple[float, str]:
+            cap: float = 0.0, floor: float = 0.0) -> tuple[float, str]:
     """(suggested price, how), never below the minimum order, then kept under `cap` x the Remas customer price
-    (but never below cost). Default is YOUR card's customer price; Remas is used only when you choose it."""
+    (but never below cost). Default is YOUR card's customer price; Remas is used only when you choose it.
+    Last, never below `floor` (cost x (1 + min_margin)): the cost floor wins over the market cap."""
+    price, how = _suggest_capped(mine, remas, cost, mode, multiplier, step, minimum, cap)
+    if floor > 0 and price < floor - 1e-9:
+        return raise_to_floor(floor, step), f"raised to cost floor ({how} was {price:,.0f})"
+    return price, how
+
+
+def raise_to_floor(floor: float, step: float = 50.0) -> float:
+    """The cost floor rounded UP to the price step (rounding never takes it back under)."""
+    step = step or 50.0
+    return math.ceil(floor / step - 1e-9) * step
+
+
+def _suggest_capped(mine, remas, cost, mode, multiplier, step, minimum, cap):
     price, how = _suggest(mine, remas, cost, mode, multiplier, step)
     if cap:
         if mine is not None and mine.cap_state == "below_cost" and how.startswith("your"):
@@ -272,7 +286,8 @@ def price_parts(grams: float, hours: float, filament: float, electricity: float,
 
 def format_market(parts: list | None, mine: MarketPrice | None, remas: MarketPrice | None, cost: float,
                   mode: str = "mine", multiplier: float = 2.0, currency: str = "", grams: float = 0.0,
-                  hours: float = 0.0, step: float = 50.0, minimum: float = 0.0, cap: float = 0.0) -> list:
+                  hours: float = 0.0, step: float = 50.0, minimum: float = 0.0, cap: float = 0.0,
+                  floor: float = 0.0) -> list:
     """Report lines: how your price is built, then the Remas comparison, the gap and the suggested price."""
     def money(v):
         return f"{currency}{v:,.0f}" if currency else f"{v:,.0f}"
@@ -297,7 +312,7 @@ def format_market(parts: list | None, mine: MarketPrice | None, remas: MarketPri
                        if gap else "Gap to market: none (same as Remas customer)")
     else:
         out.append("market (Remas): not available")
-    price, how = suggest(mine, remas, cost, mode, multiplier, step, minimum, cap)
+    price, how = suggest(mine, remas, cost, mode, multiplier, step, minimum, cap, floor)
     out.append(f"Suggested:     {money(price)}  ({how})")
     if (mine is not None and mine.cap_state == "below_cost") or "below your cost" in how:
         out.append(f"! {BELOW_COST_WARNING}")

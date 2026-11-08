@@ -193,7 +193,8 @@ def price_product(target: Path, label: str = "", profile=None, printer=None, hea
     if job.sellable:
         if job.market is not None:
             price = market.suggest(job.mine, job.market, cost, job.suggest_mode, job.cost_multiplier,
-                                   job.rounding_step, job.minimum_price, job.market_cap)[0]
+                                   job.rounding_step, job.minimum_price, job.market_cap,
+                                   job.cost_floor)[0]
         else:
             price = b.final_price
     if price != "" and price < cost:

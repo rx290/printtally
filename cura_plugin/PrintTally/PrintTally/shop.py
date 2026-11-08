@@ -31,6 +31,8 @@ DEFAULT_SETTINGS = {
     "electricity_rate_per_kwh": 90.0,       # Rs per unit (kWh), the day rate: change it in settings.json
     "electricity_rate_night_per_kwh": 0.0,  # Rs per unit at night (WAPDA); 0 = not set, the day rate is used
     "night_share": 0.0,                     # share of the print time on the night rate: 0 day, 1 night, 0.5 half
+    "night_price_multiplier": 1.0,          # your price x this for a night print (Rs 35/g night vs 21/g day = 1.67)
+    "min_margin": 0.25,                     # cost floor: no price below real cost x (1 + this), market cap or not
     "waste_pct": 0.07,
     "profit_margin_pct": 0.25,
     "filament_diameter_mm": 1.75,
@@ -323,11 +325,18 @@ class JobPrice:
     minimum_price: float = 0.0
     market_cap: float = 0.0
     estimated: bool = False          # a fallback price stood in somewhere: the price is an estimate
+    cost_floor: float = 0.0          # no price below this: real cost x (1 + min_margin)
+    min_margin: float = 0.25
 
     @property
     def sale_price(self):
-        """The selling price, or None when the licence blocks selling (personal use only)."""
-        return self.breakdown.final_price if self.sellable else None
+        """The selling price (never under the cost floor), or None when the licence blocks selling."""
+        if not self.sellable:
+            return None
+        floor = self.breakdown.cost_to_make * (1.0 + self.min_margin)     # this line's own cost basis
+        if self.breakdown.final_price < floor - 0.05:                      # 0.05: cents rounding is not a raise
+            return market_mod.raise_to_floor(floor, self.rounding_step)
+        return self.breakdown.final_price
 
 
 def build_settings(directory: Path | None = None, profile: str | None = None, printer: str | None = None,
@@ -533,6 +542,8 @@ def price_job(grams_by_material: dict, print_hours: float, prefs: dict | None = 
     except ValueError as exc:
         warnings.append(str(exc))
     b = calculate_cost(inputs)
+    min_margin = max(float(s.get("min_margin", 0.25) or 0), 0.0)
+    cost_floor = b.cost_to_make * (1.0 + min_margin)
     if mine is not None and mine.available:
         labour_per_g = market_mod.cost_per_gram(0.0, s)["labour"]
         order_labour = 0.0
@@ -551,6 +562,14 @@ def price_job(grams_by_material: dict, print_hours: float, prefs: dict | None = 
         if grams_total > 0 and mine.customer > 0:
             notes.append(f"Cost basis Rs {cpg:,.1f}/g, your price Rs {mine.customer / grams_total:,.1f}/g "
                          f"(about cost x {mine.customer / grams_total / cpg:.1f}); this print's real cost Rs {real_cost:,.0f}.")
+        night_mult = float(s.get("night_price_multiplier", 1.0) or 1.0)
+        if night_share > 0 and night_mult != 1.0:
+            factor = 1.0 + (night_mult - 1.0) * night_share
+            notes.append(f"Night price: your price {mine.customer:,.0f} x {factor:.2f} = {mine.customer * factor:,.0f} "
+                         f"(night_price_multiplier {night_mult:g}, {night_share * 100:g}% at night).")
+            mine.customer *= factor
+            if mine.reseller is not None:
+                mine.reseller *= factor
         cap = float(s.get("market_cap", 0) or 0)
         if cap > 0:
             step = float(s.get("rounding_step", 50.0) or 50.0)
@@ -566,6 +585,14 @@ def price_job(grams_by_material: dict, print_hours: float, prefs: dict | None = 
             mine.customer = minimum
             if mine.reseller is not None:
                 mine.reseller = max(mine.reseller, minimum * (1 - float(s["reseller_discount"])))
+        cost_floor = real_cost * (1.0 + min_margin)
+        if mine.customer < cost_floor - 1e-9:
+            raised = market_mod.raise_to_floor(cost_floor, float(s.get("rounding_step", 50.0) or 50.0))
+            notes.append(f"Raised to cost floor: your price {mine.customer:,.0f} is under this print's real cost "
+                         f"{real_cost:,.0f} x {1 + min_margin:g} = {cost_floor:,.0f}; price now {raised:,.0f}.")
+            mine.customer = raised
+        if mine.reseller is not None and mine.reseller < cost_floor - 1e-9:
+            mine.reseller = min(mine.customer, market_mod.raise_to_floor(cost_floor, float(s.get("rounding_step", 50.0) or 50.0)))
         parts = market_mod.price_parts(
             grams_total, print_hours, b.material_cost, b.electricity_cost,
             b.machine_cost + b.waste_maintenance_cost, b.failure_cost,
@@ -578,7 +605,7 @@ def price_job(grams_by_material: dict, print_hours: float, prefs: dict | None = 
                      "kwh": watts * print_hours / 1000.0, "electricity_rate": float(s["electricity_rate_per_kwh"]),
                      "grams": grams_total},
                     float(s.get("rounding_step", 50.0) or 50.0), float(s.get("minimum_price", 0) or 0),
-                    float(s.get("market_cap", 0) or 0), estimated)
+                    float(s.get("market_cap", 0) or 0), estimated, cost_floor, min_margin)
 
 
 def format_job(job: JobPrice) -> str:
@@ -609,14 +636,16 @@ def format_job(job: JobPrice) -> str:
     if getattr(b, "failure_cost", 0):
         out.append(f"  {'Failed prints':<24}     {money(b.failure_cost)}")
     out += [f"Cost to make:  {money(b.cost_to_make)}",
-            f"Selling price: {money(b.final_price)}" if job.sellable else
+            (f"Selling price: {money(job.sale_price)}" + (f"  (raised to cost floor from {money(b.final_price)})"
+                                                          if job.sale_price != b.final_price else ""))
+            if job.sellable else
             "Selling price: BLOCKED (personal-use licence: do not sell; cost shown for your records)"]
     if job.market is not None and job.sellable:
         cost = sum(v for _, v in job.parts[:-1]) if job.parts else b.cost_to_make
         grams = sum(g for _, g, _ in job.material_lines)
         out += market_mod.format_market(job.parts, job.mine, job.market, cost, job.suggest_mode,
                                         job.cost_multiplier, c, grams, job.hours,
-                                        job.rounding_step, job.minimum_price, job.market_cap)
+                                        job.rounding_step, job.minimum_price, job.market_cap, job.cost_floor)
     out += [f"! {w}" for w in job.warnings]
     return "\n".join(out)
 

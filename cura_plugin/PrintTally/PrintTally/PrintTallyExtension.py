@@ -202,7 +202,8 @@ class PrintTallyExtension(QObject, Extension):
                 if job.market.reseller is not None:
                     rows.append({"label": "Market (Remas) reseller", "value": money(job.market.reseller)})
             suggested, how = market_mod.suggest(job.mine, job.market, cost, job.suggest_mode, job.cost_multiplier,
-                                                job.rounding_step, job.minimum_price, job.market_cap)
+                                                job.rounding_step, job.minimum_price, job.market_cap,
+                                   job.cost_floor)
             rows.append({"label": f"Suggested price ({how})", "value": money(suggested)})
             extra = (job.mine.messages if job.mine else []) + job.market.messages
             if job.mine is not None and job.mine.cap_state == "below_cost":
