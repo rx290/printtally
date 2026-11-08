@@ -165,13 +165,13 @@ def test_pla_is_marked_estimate_and_remas_keys_follow_the_material():
     assert shop.load_materials()["TPU"].remas_key == "TPU 95A"
 
 
-def test_missing_tpu_price_says_so_and_invents_nothing():
+def test_missing_tpu_price_says_so_and_prices_it_as_an_estimate():
     job = price("service", material="TPU")
     text = shop.format_job(job)
-    assert "set a price for TPU" in text
-    assert job.breakdown.material_cost == 0
+    assert "set a price for tpu" in text.lower() and "** ESTIMATE" in text
+    assert job.estimated and job.breakdown.material_cost > 0
     cf = price("product", material="PC-CF")
-    assert "set a price for PC-CF" in shop.format_job(cf)
+    assert "set a price for pc-cf" in shop.format_job(cf).lower()
 
 
 def test_cli_profiles_list_show_set_use(config):

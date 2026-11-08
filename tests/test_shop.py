@@ -36,10 +36,10 @@ def test_a_prototype_always_has_a_price(lib):
     assert job.breakdown.cost_to_make > 0 and job.breakdown.final_price > job.breakdown.cost_to_make
 
 
-def test_missing_prices_are_reported_not_guessed(lib):
+def test_missing_prices_are_reported_not_guessed_when_the_fallback_is_off(lib):
     lib["PLA"].price_per_kg = 0
     job = shop.price_job({"PLA": 10.0}, 1.0, prefs={"bom": [{"part": "dob_5w", "qty": 2}]}, materials=lib, parts={},
-                         settings={"electricity_rate_per_kwh": 0})
+                         settings={"electricity_rate_per_kwh": 0, "fallback_price_per_kg": 0})
     text = " ".join(job.warnings)
     assert "No price for PLA" in text and "dob_5w" in text and "Electricity rate not set" in text
     assert job.breakdown.material_cost == 0 and job.breakdown.hardware_cost == 0
@@ -181,3 +181,33 @@ def test_failure_rate_and_monthly_fixed(tmp_path):
     job = price_job({"PETG": 100.0}, 0.0, prefs, materials=load_materials(tmp_path), parts={}, inventory={})
     assert ("Dino kit royalty", 1, 70.0) in job.part_lines
     assert any("units_per_month" in w for w in job.warnings)
+
+
+# ---------------------------------------------------------------- always a price (fallbacks)
+def test_unpriced_material_uses_the_fallback_and_is_flagged(lib):
+    lib["TPU"].price_per_kg = 0
+    job = shop.price_job({"TPU": 100.0}, 1.0, settings={"fallback_price_per_kg": 3000}, materials=lib, parts={})
+    assert job.estimated
+    assert job.breakdown.material_cost == pytest.approx(300.0)
+    assert any(w.startswith("ESTIMATE: no price for TPU") for w in job.warnings)
+    assert "** ESTIMATE" in shop.format_job(job)
+    assert lib["TPU"].price_per_kg == 0          # the caller's library is not changed
+
+
+def test_unknown_material_is_priced_as_the_fallback_material(lib):
+    job = shop.price_job({"Nylon CF": 50.0}, 1.0, settings={"fallback_material": "PETG"}, materials=lib, parts={})
+    assert job.estimated and job.material_lines[0][0] == "PETG"
+    assert job.breakdown.material_cost == pytest.approx(50 * 2.25)
+    assert "unknown material 'Nylon CF'" in " ".join(job.warnings)
+    assert job.mine is not None and job.mine.available and job.mine.customer > 0
+
+
+def test_unnamed_material_still_gets_a_price(lib):
+    job = shop.price_job({"": 80.0}, 2.0, materials=lib, parts={})
+    assert job.estimated and job.breakdown.final_price > 0
+    assert "did not name the material" in job.warnings[0]
+
+
+def test_known_priced_material_is_not_an_estimate(lib):
+    job = shop.price_job({"PETG": 80.0}, 2.0, materials=lib, parts={})
+    assert not job.estimated and not any(w.startswith("ESTIMATE") for w in job.warnings)

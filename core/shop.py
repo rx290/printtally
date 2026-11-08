@@ -9,7 +9,9 @@ PrintTally 2.0 shop layer: prices a real job from what the slicer reports plus y
                    licence, bill of materials, packaging, stage. Nearer files override farther ones.
 
 The first three live in ~/.config/printtally (or $PRINTTALLY_CONFIG). Nothing personal ships in the
-repo: the built-in defaults have no prices, and a missing price is reported, never guessed.
+repo except the shop's reference numbers in data/. A missing material price never drops grams from the
+price: it is priced at the fallback (fallback_price_per_kg, or the fallback_material's price) and the whole
+price is flagged ESTIMATE until you set the real one.
 
 Every job gets a price, prototypes included: a prototype shows what it cost to make (filament, machine
 time, electricity, waste, parts), and the selling price it would need.
@@ -64,6 +66,8 @@ DEFAULT_SETTINGS = {
     "minimum_price": 0.0,                # no suggested price below this (minimum order)
     "market_cap": 0.0,                   # your price stays under this fraction of the Remas customer price (0 = off)
     "purge_waste_g": 0.0,                # extra filament purged on a multi-colour job (BMCU, AMS), grams
+    "fallback_material": "PETG",         # an unknown or unnamed material is priced as this one (flagged ESTIMATE)
+    "fallback_price_per_kg": 3000.0,     # a material with no price yet uses this (flagged ESTIMATE); 0 = leave it out
     "batch": {},                         # {"PETG": "original"}: which batch of a material to price from
     "order_kg": {},                      # {"ABS": 12}: order size, picks a quantity tier of my_price
     **market_mod.CARD_DEFAULTS,          # labour, grams per hour, profit multiplier, tier discounts, ...
@@ -268,6 +272,7 @@ class JobPrice:
     rounding_step: float = 50.0
     minimum_price: float = 0.0
     market_cap: float = 0.0
+    estimated: bool = False          # a fallback price stood in somewhere: the price is an estimate
 
 
 def build_settings(directory: Path | None = None, profile: str | None = None, printer: str | None = None,
@@ -328,23 +333,48 @@ def price_job(grams_by_material: dict, print_hours: float, prefs: dict | None = 
         grams_by_material[biggest] += purge
         notes.append(f"Includes {purge:g} g of purge waste (multi-colour job).")
     material_cost, grams_total = 0.0, 0.0
-    market_grams = {}
+    market_grams, used_prices = {}, {}
+    fallback_price = float(s.get("fallback_price_per_kg", 0) or 0)
+    estimated = False
     for name, grams in grams_by_material.items():
         m = match_material(name or prefs.get("material", ""), materials)
         if m is None:
             m = match_material(prefs.get("material", ""), materials)
         if m is None:
-            if not name and not prefs.get("material"):
+            stand_in = match_material(str(s.get("fallback_material", "") or ""), materials)
+            if stand_in is not None and (stand_in.price_per_kg > 0 or fallback_price > 0):
+                m = copy.copy(stand_in)
+                if m.price_per_kg <= 0:
+                    m.price_per_kg, m.price_status = fallback_price, "estimate"
+                estimated = True
+                if not name and not prefs.get("material"):
+                    warnings.append(f"ESTIMATE: the slicer did not name the material ({grams:.0f} g), priced as "
+                                    f"{m.name}. Set \"material\" in a printtally.json beside the model or in its "
+                                    "folder (e.g. \"PETG\").")
+                else:
+                    warnings.append(f"ESTIMATE: unknown material '{name or prefs.get('material')}' ({grams:.0f} g) "
+                                    f"priced as {m.name}. Add it as a material profile to price it properly.")
+            elif not name and not prefs.get("material"):
                 warnings.append(f"The slicer did not name the material ({grams:.0f} g): set \"material\" in a "
                                 "printtally.json beside the model or in its folder (e.g. \"PETG\").")
+                continue
             else:
                 warnings.append(f"Unknown material '{name or prefs.get('material')}': add it to materials.json; "
                                 f"{grams:.0f} g left out of the price.")
-            continue
+                continue
+        if m.price_per_kg <= 0 and fallback_price > 0:
+            m = copy.copy(m)
+            m.price_per_kg, m.price_status = fallback_price, "estimate"
+            estimated = True
+            warnings.append(f"ESTIMATE: no price for {m.name} yet, priced at the fallback Rs {fallback_price:,.0f}/kg. "
+                            f"Set a price for {m.name}: my_price in its material file (or price_per_kg in materials.json).")
         if m.price_per_kg <= 0:
             warnings.append(f"No price for {m.name} yet: set a price for {m.name} (my_price in its material file, "
                             f"or price_per_kg in materials.json); {grams:.0f} g left out of the price.")
         else:
+            if m.price_status == "estimate":
+                estimated = True
+            used_prices[m.name] = m.price_per_kg
             line = f"{m.name}{' [' + m.batch + ']' if m.batch else ''}: my price Rs {m.price_per_kg:,.0f}/kg"
             if m.list_price:
                 line += f" (list price Rs {m.list_price:,.0f}/kg, for reference only)"
@@ -421,7 +451,7 @@ def price_job(grams_by_material: dict, print_hours: float, prefs: dict | None = 
                    for m in market_grams if m in materials and (prefs.get("market_material") or materials[m].remas_key)}
     remas = market_mod.market_price(market_grams, s.get("market_rates_path") or None, remas_names or None,
                                     label="the Remas card")
-    prices = {m.name: m.price_per_kg for m in materials.values() if m.price_per_kg > 0}
+    prices = {**{m.name: m.price_per_kg for m in materials.values() if m.price_per_kg > 0}, **used_prices}
     mine, parts = None, []
     try:
         card, source = market_mod.my_card(
@@ -476,7 +506,7 @@ def price_job(grams_by_material: dict, print_hours: float, prefs: dict | None = 
                      "kwh": watts * print_hours / 1000.0, "electricity_rate": float(s["electricity_rate_per_kwh"]),
                      "grams": grams_total},
                     float(s.get("rounding_step", 50.0) or 50.0), float(s.get("minimum_price", 0) or 0),
-                    float(s.get("market_cap", 0) or 0))
+                    float(s.get("market_cap", 0) or 0), estimated)
 
 
 def format_job(job: JobPrice) -> str:
@@ -484,7 +514,8 @@ def format_job(job: JobPrice) -> str:
     money = (lambda v: f"{c}{v:,.2f}") if c else (lambda v: f"{v:,.2f}")
     b = job.breakdown
     out = [f"Profile: {job.profile or 'none'}   Stage: {job.stage}   Licence: {job.licence}"
-           + ("" if job.sellable else "   ** DO NOT SELL **")]
+           + ("" if job.sellable else "   ** DO NOT SELL **")
+           + ("   ** ESTIMATE: fallback prices used, see the ! lines **" if job.estimated else "")]
     f = job.factors or {}
     if f:
         bits = [f"{job.hours:.2f} h", f"{f.get('grams', 0):,.0f} g"]

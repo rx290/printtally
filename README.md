@@ -144,7 +144,7 @@ The Quadender Pro 400 prints with up to 4 heads at once, so its throughput is 4 
 
 ### Materials
 
-Material files live in `data/materials/` (your copies in `~/.config/printtally/materials/`). Each has batches with `my_price` (what you pay through your reference, used in all the maths) and optionally `list_price` (the open-market price, shown only as a note). Pick a batch with `--material PETG:original`; the default is the cheapest. ABS has quantity tiers on `my_price` (Rs 3,400 up to 10 kg, Rs 3,250 above), chosen with `"order_kg": {"ABS": 12}` in settings.json. PLA is marked ESTIMATE (Rs 3,000 within a 2,500 to 3,500 range). TPU, PC-CF and ASA have no price yet: PrintTally prints "set a price for TPU" and leaves it out rather than inventing one. Each material carries its key on the Remas card (PC-CF uses `CF-PC 3dxtech`). Electricity is shop-wide in `settings.json` (default Rs 90 a unit). `printtally.py materials` lists everything.
+Material files live in `data/materials/` (your copies in `~/.config/printtally/materials/`). Each has batches with `my_price` (what you pay through your reference, used in all the maths) and optionally `list_price` (the open-market price, shown only as a note). Pick a batch with `--material PETG:original`; the default is the cheapest. ABS has quantity tiers on `my_price` (Rs 3,400 up to 10 kg, Rs 3,250 above), chosen with `"order_kg": {"ABS": 12}` in settings.json. PLA is marked ESTIMATE (Rs 3,000 within a 2,500 to 3,500 range). TPU, PC-CF and ASA have no price yet: PrintTally still prices them (see "Always a price" below) and tells me to set a price for TPU. Each material carries its key on the Remas card (PC-CF uses `CF-PC 3dxtech`). Electricity is shop-wide in `settings.json` (default Rs 90 a unit). `printtally.py materials` lists everything.
 
 Every price starts with the real print factors from the G-code: print time, layer height, line width, grams, and electricity from the printer's watts times the time.
 
@@ -160,6 +160,10 @@ python3 -m venv .venv && .venv/bin/pip install pytest
 ## Status
 
 Core formula and both adapters built and tested (2026-08-18), extended with a seventh factor (design cost, checkbox-gated) the same day. Rebuilt as a real Cura Extension plugin with a settings dialog and live price widget (2026-08-26), replacing the earlier post-processing-script approach — confirmed working end-to-end in a real Cura 5.13 installation, including catching and fixing two real QML bugs (`UM.ToolTip` needing the `UM 1.5` import, and `UM.Dialog`'s default `contents` property rejecting a non-visual `I18nCatalog` child) via Cura's own log, not guesswork. Not yet verified against a real OrcaSlicer CLI slice end-to-end (the CLI slicing in this dev environment needs a properly-typed printer/process profile pair that wasn't readily available — the footer-parsing logic is instead verified against OrcaSlicer's actual source code strings). If you hit a parsing error against a real slice, the exact real footer line is the thing to check first.
+
+### Always a price
+
+Every job gets a number, prototypes and odd materials included, because prototype filament is still money I spent. When a material has no price yet, I price it at `fallback_price_per_kg` (Rs 3,000 a kg by default). When the slicer names a material I don't have, or names none at all, I price it as `fallback_material` (PETG by default). Either way the header says `** ESTIMATE **` and a `!` line says exactly which material was guessed, so I know to fix the material file. Both settings live in `settings.json` or a profile. Setting `fallback_price_per_kg` to 0 brings back the old behaviour: the grams are left out and reported.
 
 ### Real grams (weigh_factor)
 Set `"weigh_factor": 1.07` on a material in materials.json (or let printkit write it: `python -m printkit weigh --material PETG --slicer 120 --scale 128`) and PrintTally prices that filament at slicer grams x the factor.
