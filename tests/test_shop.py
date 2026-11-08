@@ -272,3 +272,22 @@ def test_plugin_carries_the_same_parts_list():
     name = "parts.json"
     assert (repo / "data" / name).read_text() == \
         (repo / "cura_plugin" / "PrintTally" / "PrintTally" / "data" / name).read_text()
+
+
+# ---------------------------------------------------------------- day and night electricity
+def test_night_rate_replaces_the_day_rate(lib):
+    s = {"electricity_rate_per_kwh": 40, "electricity_rate_night_per_kwh": 70, "printer_watts": 200}
+    day = shop.price_job({"PETG": 100.0}, 10.0, settings=s, materials=lib, parts={})
+    night = shop.price_job({"PETG": 100.0}, 10.0, prefs={"night_share": 1}, settings=s, materials=lib, parts={})
+    half = shop.price_job({"PETG": 100.0}, 10.0, settings={**s, "night_share": 0.5}, materials=lib, parts={})
+    assert day.breakdown.electricity_cost == pytest.approx(2 * 40)
+    assert night.breakdown.electricity_cost == pytest.approx(2 * 70)
+    assert half.breakdown.electricity_cost == pytest.approx(2 * 55)
+    assert any("night rate Rs 70" in n for n in night.notes)
+
+
+def test_night_without_a_night_rate_warns_and_uses_the_day_rate(lib):
+    job = shop.price_job({"PETG": 100.0}, 10.0, prefs={"night_share": 1},
+                         settings={"electricity_rate_per_kwh": 40, "printer_watts": 200}, materials=lib, parts={})
+    assert job.breakdown.electricity_cost == pytest.approx(80)
+    assert any(w.startswith("Night rate not set") for w in job.warnings)

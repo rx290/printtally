@@ -28,7 +28,9 @@ DEFAULT_SETTINGS = {
     "currency": "",
     "machine_rate_per_hour": 40.0,
     "printer_watts": 250.0,
-    "electricity_rate_per_kwh": 90.0,       # Rs per unit (kWh): change it in settings.json
+    "electricity_rate_per_kwh": 90.0,       # Rs per unit (kWh), the day rate: change it in settings.json
+    "electricity_rate_night_per_kwh": 0.0,  # Rs per unit at night (WAPDA); 0 = not set, the day rate is used
+    "night_share": 0.0,                     # share of the print time on the night rate: 0 day, 1 night, 0.5 half
     "waste_pct": 0.07,
     "profit_margin_pct": 0.25,
     "filament_diameter_mm": 1.75,
@@ -443,6 +445,20 @@ def price_job(grams_by_material: dict, print_hours: float, prefs: dict | None = 
     stage = prefs.get("stage", "prototype")
     if stage not in STAGES:
         stage = "prototype"
+    try:
+        night_share = min(max(float(prefs.get("night_share", s.get("night_share", 0)) or 0), 0.0), 1.0)
+    except (TypeError, ValueError):
+        night_share = 0.0
+    if night_share > 0:
+        day_rate = float(s.get("electricity_rate_per_kwh", 0) or 0)
+        night_rate = float(s.get("electricity_rate_night_per_kwh", 0) or 0)
+        if night_rate > 0:
+            s["electricity_rate_per_kwh"] = day_rate * (1 - night_share) + night_rate * night_share
+            notes.append(f"Electricity: {night_share * 100:g}% of the print on the night rate Rs {night_rate:g}, "
+                         f"the rest on the day rate Rs {day_rate:g}: Rs {s['electricity_rate_per_kwh']:.1f} a unit.")
+        else:
+            warnings.append("Night rate not set: add electricity_rate_night_per_kwh to settings.json; "
+                            "the day rate was used.")
     if s.get("electricity_rate_per_kwh", 0) <= 0:
         warnings.append("Electricity rate not set (settings.json): electricity counted as 0.")
     watts = float(s["printer_watts"])

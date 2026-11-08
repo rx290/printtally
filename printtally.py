@@ -54,6 +54,7 @@ def cmd_price(args):
         settings["market_rates_path"] = args.rates
     if args.my_rates:
         settings["my_rates_path"] = args.my_rates
+    _apply_night(args, prefs)
     if args.suggest:
         settings["suggest_mode"] = args.suggest
     if args.multiplier is not None:
@@ -69,6 +70,14 @@ def cmd_price(args):
     if used:
         print("Preferences: " + ", ".join(used))
     print(shop.format_job(job))
+
+
+def _apply_night(args, prefs):
+    """--night / --night-share: how much of the print runs on the night electricity rate."""
+    if getattr(args, "night", False):
+        prefs["night_share"] = 1.0
+    if getattr(args, "night_share", None) is not None:
+        prefs["night_share"] = args.night_share
 
 
 def _kv(text):
@@ -194,6 +203,10 @@ def _selectors(p, with_material):
     p.add_argument("--printer", help="printer whose payback, watts and speed set the machine rate; see `printers list`")
     p.add_argument("--heads", type=int, help="heads printing at once on a multi-head printer (1 for a single part)")
     if with_material:
+        p.add_argument("--night", action="store_true",
+                       help="the print runs at night: electricity at electricity_rate_night_per_kwh")
+        p.add_argument("--night-share", type=float, metavar="0-1",
+                       help="share of the print time on the night rate, e.g. 0.5 for a print that runs into the night")
         p.add_argument("--material", metavar="NAME[:BATCH]",
                        help="price all filament as this material, e.g. PETG or PETG:original (default: the cheapest batch)")
 

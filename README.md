@@ -173,6 +173,10 @@ Each model's `printtally.json` can say whose design it is with `"licence"`:
 - `commercial`: a design I licensed for selling. `royalty_fixed` (Rs per sale) and `royalty_pct` (a share of the price) are added to the price so my margin stays the same after the designer is paid.
 - `personal`: personal use only. I still see what it cost me to make, but the selling price is blocked: the report says `Selling price: BLOCKED`, no suggested price is shown, the Cura panel says NOT FOR SALE, and the folder CSV leaves the price empty.
 
+### Day and night electricity
+
+My electricity is not one price. In the day it is cheaper; at night the printers run on WAPDA at the full rate. `electricity_rate_per_kwh` in `settings.json` is the day rate and `electricity_rate_night_per_kwh` is the night rate (0 means I have not set it, and the day rate is used with a warning). A print that runs at night gets `--night`; one that starts in the evening and finishes in the morning gets `--night-share 0.5` (half its hours on the night rate). The same `night_share` can sit in `settings.json` or a model's `printtally.json`. The report says which rates it mixed, and the per-gram card follows the same rate.
+
 ### Lights and hardware (BOM)
 
 A lamp is more than plastic, so a model's `printtally.json` can list its parts: `"bom": [{"part": "dob_5w", "qty": 1}, {"part": "plug_cable_graded", "qty": 1}]`. Their cost goes into the cost to make and the price.
