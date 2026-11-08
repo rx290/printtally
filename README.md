@@ -192,6 +192,7 @@ The full schema is in `docs/printtally.schema.json`. The keys:
 | `settings` | Any `settings.json` key for this model only |
 | `profit_margin_pct`, `failure_rate`, `purge_waste_g`, `post_processing_hours`, `include_design_cost`, `design_hours`, `packaging_cost`, `shipping_cost`, `marketing_fee_pct` | Per-model overrides of the same settings |
 | `night_share` | Share of the print on the night electricity rate |
+| `customer` | Customer profile: `customer`, `friends`, `none` or my own |
 | `product`, `copies`, `skip`, `estimate` | For `price-folder` (below) |
 
 Any other key is ignored, so Lamp Studio can add its own (family, size). `printtally prefs model.stl` shows which files apply, the merged result, and anything with the wrong type; `price` and `price-folder` print the same problems.
@@ -207,6 +208,18 @@ python printtally.py price-folder ~/lamp-print-packs/home/01* --profile service 
 Every folder that directly holds STL, 3MF or G-code files is one product. Its sub-folders (like `hex6/` or `snap_parts/`) are their own rows, because in my packs they are variants, not extra parts. Folders named `reference` or `docs` and files with `DO_NOT_PRINT` in the name are skipped. When a `.gcode` sits next to an STL with the same name, the G-code wins and its real grams and time are used. Otherwise the grams come from the mesh: a 1.2 mm solid shell under the whole surface plus 15% infill inside, and the hours from 15 g per hour (the 0.4 mm / 0.20 mm speed in my print-time study). Against 26 products I had already sliced in Orca, this lands within a few percent on most (median 1.03 of the sliced grams); lithophanes and other 100% infill prints come out low. Those rows say `grams and hours from the mesh` in the Estimate column.
 
 The model's `printtally.json` files apply as usual (material, licence, BOM, profile, printer), plus four keys for folders: `copies` (`{"egg_leg_L.stl": 2}`), `skip` (files to leave out), `product` (the name in the CSV) and `estimate` (`{"shell_mm": 1.2, "infill": 0.15, "grams_per_hour": 15}`). The CSV columns use the same names as the Products tab in my Shop HQ workbook (Grams, Print hours, Unit cost, Parts cost / unit, Price) so I can paste them across. A personal-use model gets an empty price. Every price obeys the cost floor below, so a row can't come out under its cost.
+
+### Customer profiles (friends and customers)
+
+I don't charge a friend what I charge everyone else, so I pick who the job is for before I price it:
+
+- `customer` (the default): my normal price from my rate card, but never under Rs 20 a gram.
+- `friends`: the same calculation, kept under Rs 20 a gram. The cost floor still wins: if Rs 20 a gram would lose money on a slow print, the price stays at the cost floor and the report warns `Selling at cost floor, above friend cap`.
+- `none`: no customer rules, the plain profile price (useful for kits and checks).
+
+Each profile can also have `discount_pct` (0.1 = 10% off). They are applied after the market cap and the minimum order, in this order: discount, then the per-gram minimum (`min_per_g`), then the per-gram cap (`max_per_g`), then the cost floor. The shipped profiles are in `data/customers.json`. I add my own (a school, a reseller) in `~/.config/printtally/customers.json` or under `"customers"` in `settings.json`, and `"default_customer"` in `settings.json` changes the default. I pick one with `--customer friends` on `price` and `price-folder`, the Customer dropdown in the Cura settings, or `"customer"` in a model's `printtally.json`. `printtally customers` lists them.
+
+For the stackable egg tray (about 81 g, 5.4 h): on the service profile a customer pays Rs 2,300 and a friend Rs 1,600 (Rs 20 a gram, rounded down). On the cheaper product profile a customer pays Rs 1,650 (lifted to Rs 20 a gram) and a friend Rs 1,200 (the cost floor).
 
 ### Cost floor (min_margin)
 
