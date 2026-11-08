@@ -12,6 +12,7 @@
     python printtally.py parts                         list lights and hardware (BOM) with local prices
     python printtally.py price-folder ~/lamp-print-packs/home/01* --out home.csv
                                                        price whole packs (STL/3MF estimated, G-code exact) into a CSV
+    python printtally.py prefs model.stl               show and check the printtally.json files that apply
     python printtally.py init                          write starter materials/parts/settings files
 
 Your files live in ~/.config/printtally ($PRINTTALLY_CONFIG overrides). Preference files
@@ -72,6 +73,8 @@ def cmd_price(args):
     if used:
         print("Preferences: " + ", ".join(used))
     print(shop.format_job(job))
+    for problem in shop.check_preferences(prefs):
+        print(f"! printtally.json: {problem}")
 
 
 def _apply_night(args, prefs):
@@ -80,6 +83,19 @@ def _apply_night(args, prefs):
         prefs["night_share"] = 1.0
     if getattr(args, "night_share", None) is not None:
         prefs["night_share"] = args.night_share
+
+
+def cmd_prefs(args):
+    prefs, used = shop.find_preferences(Path(args.model))
+    print("Files (farthest first, nearer wins):" if used else "No printtally.json applies to this model.")
+    for f in used:
+        print(f"  {f}")
+    _show(prefs)
+    problems = shop.check_preferences(prefs)
+    for problem in problems:
+        print(f"! {problem}")
+    if not problems and used:
+        print("OK")
 
 
 def cmd_price_folder(args):
@@ -240,6 +256,9 @@ def main(argv=None):
     p.add_argument("--multiplier", type=float, help="cost multiplier for --suggest multiplier")
     _selectors(p, True)
     p.set_defaults(func=cmd_price)
+    p = sub.add_parser("prefs", help="show the merged printtally.json preferences for a model and check them")
+    p.add_argument("model", help="the model file (or a folder) the preferences are for")
+    p.set_defaults(func=cmd_prefs)
     p = sub.add_parser("price-folder", help="price every product folder of STL/3MF/G-code files into a CSV")
     p.add_argument("paths", nargs="+", metavar="PATH", help="pack folders, a folder of packs, or single files")
     p.add_argument("--out", default="printtally_prices.csv", help="CSV to write (default: printtally_prices.csv)")

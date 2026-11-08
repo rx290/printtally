@@ -141,3 +141,36 @@ def test_cli_price_folder_with_nothing_printable_fails(tmp_path, config):
                        cwd=tmp_path)
     assert r.returncode == 1 and "No STL" in r.stderr
     assert not (tmp_path / "printtally_prices.csv").exists()
+
+
+# ---------------------------------------------------------------- printtally.json schema
+REPO = Path(__file__).resolve().parent.parent
+
+
+def test_schema_documents_every_key_the_code_reads():
+    import re
+    schema = json.loads((REPO / "docs" / "printtally.schema.json").read_text())
+    documented = set(schema["properties"])
+    assert documented == set(shop.PREF_TYPES)
+    code = "".join((REPO / f).read_text() for f in ("core/shop.py", "core/folder.py", "printtally.py"))
+    read = set(re.findall(r'prefs(?:\.get\(|\[)"([a-z_]+)"', code))
+    assert read <= documented, read - documented
+
+
+def test_check_preferences_finds_type_and_value_problems():
+    assert shop.check_preferences({"material": "PETG", "family": "Dome", "bom": [{"part": "dob_5w"}]}) == []
+    problems = " ".join(shop.check_preferences({"licence": "free", "copies": [1], "night_share": "yes",
+                                                "bom": [{"qty": 2}], "include_design_cost": 1}))
+    for bit in ('"licence" must be one of', '"copies" should be a object', '"night_share" should be a number',
+                'needs a "part"', '"include_design_cost" should be a boolean'):
+        assert bit in problems
+
+
+def test_cli_prefs_shows_merged_files(tmp_path, config):
+    (tmp_path / "printtally.json").write_text(json.dumps({"material": "PETG", "licence": "personal"}))
+    (tmp_path / "lamp.stl.printtally.json").write_text(json.dumps({"stage": "selling"}))
+    write_binary_stl(tmp_path / "lamp.stl")
+    r = subprocess.run([sys.executable, str(CLI), "prefs", str(tmp_path / "lamp.stl")], capture_output=True, text=True)
+    assert r.returncode == 0, r.stderr
+    assert "lamp.stl.printtally.json" in r.stdout and "personal" in r.stdout and "selling" in r.stdout
+    assert r.stdout.strip().endswith("OK")

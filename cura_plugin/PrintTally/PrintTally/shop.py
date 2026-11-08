@@ -265,6 +265,40 @@ def find_preferences(model_path) -> tuple[dict, list]:
     return merged, [str(f) for f in files]
 
 
+PREF_TYPES = {   # printtally.json keys and their JSON types (docs/printtally.schema.json is the full schema)
+    "material": "string", "market_material": "string", "profile": "string", "printer": "string",
+    "heads_in_use": "integer", "stage": "string", "licence": "string", "royalty_pct": "number",
+    "royalty_fixed": "number", "monthly_fixed": "array", "bom": "array", "settings": "object",
+    "profit_margin_pct": "number", "failure_rate": "number", "purge_waste_g": "number",
+    "post_processing_hours": "number", "include_design_cost": "boolean", "design_hours": "number",
+    "packaging_cost": "number", "shipping_cost": "number", "marketing_fee_pct": "number", "night_share": "number",
+    "product": "string", "copies": "object", "skip": "array", "estimate": "object",
+}
+_JSON_TYPES = {"string": (str,), "integer": (int,), "number": (int, float), "boolean": (bool,),
+               "array": (list,), "object": (dict,)}
+
+
+def check_preferences(prefs: dict) -> list:
+    """Problems in merged printtally.json preferences: wrong types, unknown licence or stage, BOM lines without
+    a part. Keys PrintTally does not use are allowed (other tools may add their own)."""
+    problems = []
+    for key, kind in PREF_TYPES.items():
+        if key not in prefs:
+            continue
+        value = prefs[key]
+        ok = isinstance(value, _JSON_TYPES[kind]) and not (kind in ("number", "integer") and isinstance(value, bool))
+        if not ok:
+            problems.append(f"\"{key}\" should be a {kind}, not {json.dumps(value)}.")
+    if prefs.get("licence", "own") not in LICENCES:
+        problems.append(f"\"licence\" must be one of {', '.join(LICENCES)}.")
+    if prefs.get("stage", "prototype") not in STAGES:
+        problems.append(f"\"stage\" must be one of {', '.join(STAGES)}.")
+    for item in prefs.get("bom", []) if isinstance(prefs.get("bom"), list) else []:
+        if not isinstance(item, dict) or not item.get("part"):
+            problems.append(f"bom line {json.dumps(item)} needs a \"part\".")
+    return problems
+
+
 # ------------------------------------------------------------------- pricing
 @dataclass
 class JobPrice:

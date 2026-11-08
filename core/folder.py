@@ -165,7 +165,7 @@ def price_product(target: Path, label: str = "", profile=None, printer=None, hea
     stand_in = (shop.match_material(chosen, materials)
                 or shop.match_material(str(settings.get("fallback_material", "")), materials))
     density = stand_in.density_g_cm3 if stand_in else 1.24
-    grams, hours, used, kinds, problems = {}, 0.0, [], set(), []
+    grams, hours, used, kinds, problems = {}, 0.0, [], set(), shop.check_preferences(prefs)
     for f in _sources([f for f in files if f.name.lower() not in skip]):
         n = copies.get(f.name.lower(), copies.get(f.stem.lower(), 1.0))
         try:

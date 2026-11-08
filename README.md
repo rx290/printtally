@@ -173,6 +173,29 @@ Each model's `printtally.json` can say whose design it is with `"licence"`:
 - `commercial`: a design I licensed for selling. `royalty_fixed` (Rs per sale) and `royalty_pct` (a share of the price) are added to the price so my margin stays the same after the designer is paid.
 - `personal`: personal use only. I still see what it cost me to make, but the selling price is blocked: the report says `Selling price: BLOCKED`, no suggested price is shown, the Cura panel says NOT FOR SALE, and the folder CSV leaves the price empty.
 
+### printtally.json preference files
+
+A `printtally.json` tells PrintTally what it can't read from the slicer: the material, licence, parts, profile and printer. I put one in a folder to cover everything inside it (all of `Lamps/Dome/`, say), and a `<model>.printtally.json` or `<model-stem>.printtally.json` beside one model for its own changes. PrintTally reads every `printtally.json` from the farthest folder down to the model's own folder, then the model's file, and the nearer file wins key by key. Lamp Studio will write these files on export so a design arrives already knowing its material and electronics.
+
+The full schema is in `docs/printtally.schema.json`. The keys:
+
+| Key | What it does |
+|---|---|
+| `material` | Material for grams the slicer did not name (Cura) and for mesh estimates: `PETG` or `PETG:original` |
+| `market_material` | The material's name on the rate cards when it differs (`CF-PETG`) |
+| `profile`, `printer`, `heads_in_use` | Pricing profile, printer profile, heads printing at once |
+| `licence` | `own`, `commercial` or `personal` (see Licences) |
+| `royalty_pct`, `royalty_fixed` | Royalty for a `commercial` licence |
+| `monthly_fixed` | `[{"name", "amount", "units_per_month"}]` spread per unit |
+| `bom` | `[{"part": "dob_5w", "qty": 1}]`, names from the parts list |
+| `stage` | `prototype`, `selling` or `retired` |
+| `settings` | Any `settings.json` key for this model only |
+| `profit_margin_pct`, `failure_rate`, `purge_waste_g`, `post_processing_hours`, `include_design_cost`, `design_hours`, `packaging_cost`, `shipping_cost`, `marketing_fee_pct` | Per-model overrides of the same settings |
+| `night_share` | Share of the print on the night electricity rate |
+| `product`, `copies`, `skip`, `estimate` | For `price-folder` (below) |
+
+Any other key is ignored, so Lamp Studio can add its own (family, size). `printtally prefs model.stl` shows which files apply, the merged result, and anything with the wrong type; `price` and `price-folder` print the same problems.
+
 ### Pricing a whole folder (price-folder)
 
 I have hundreds of STL packs and I don't want to slice each one just to know roughly what to charge. `printtally price-folder` walks the folders I give it and writes one CSV row per product:

@@ -1,0 +1,56 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/rx290/printtally/docs/printtally.schema.json",
+  "title": "printtally.json preference file",
+  "description": "Preferences for one model (<model>.printtally.json or <model-stem>.printtally.json beside it) or a whole folder (printtally.json in that folder or any folder above it). Files are merged from the farthest folder down to the model, nearer keys win. Keys not listed here are ignored, so other tools (Lamp Studio) can add their own.",
+  "type": "object",
+  "additionalProperties": true,
+  "properties": {
+    "material": {"type": "string", "description": "Material for grams the slicer did not name, or for every gram with price-folder; NAME or NAME:BATCH, e.g. PETG:original."},
+    "market_material": {"type": "string", "description": "The material's name on the Remas and your rate cards, when it differs (e.g. CF-PETG)."},
+    "profile": {"type": "string", "description": "Pricing profile: service, product, or one of your own."},
+    "printer": {"type": "string", "description": "Printer profile whose payback, watts and speed set the machine rate."},
+    "heads_in_use": {"type": "integer", "minimum": 1, "description": "Heads printing at once on a multi-head printer."},
+    "stage": {"enum": ["prototype", "selling", "retired"], "description": "Product stage. Default prototype."},
+    "licence": {"enum": ["own", "commercial", "personal"], "description": "own: no royalty. commercial: royalty added. personal: priced for records, selling blocked."},
+    "royalty_pct": {"type": "number", "minimum": 0, "exclusiveMaximum": 1, "description": "commercial: designer's share of the price (0.1 = 10%)."},
+    "royalty_fixed": {"type": "number", "minimum": 0, "description": "commercial: Rs per sale to the designer."},
+    "monthly_fixed": {
+      "type": "array",
+      "description": "Fixed monthly costs spread over the units sold per month.",
+      "items": {"type": "object", "required": ["amount", "units_per_month"],
+                "properties": {"name": {"type": "string"}, "amount": {"type": "number"}, "units_per_month": {"type": "number"}}}
+    },
+    "bom": {
+      "type": "array",
+      "description": "Parts (lights, hardware, packaging) by their name in parts.json.",
+      "items": {"type": "object", "required": ["part"],
+                "properties": {"part": {"type": "string"}, "qty": {"type": "number", "minimum": 0}}}
+    },
+    "settings": {"type": "object", "description": "Any settings.json key, for this model only."},
+    "profit_margin_pct": {"type": "number", "minimum": 0},
+    "failure_rate": {"type": "number", "minimum": 0, "exclusiveMaximum": 1},
+    "purge_waste_g": {"type": "number", "minimum": 0, "description": "Purge filament on a multi-colour job."},
+    "post_processing_hours": {"type": "number", "minimum": 0},
+    "include_design_cost": {"type": "boolean"},
+    "design_hours": {"type": "number", "minimum": 0},
+    "packaging_cost": {"type": "number", "minimum": 0},
+    "shipping_cost": {"type": "number", "minimum": 0},
+    "marketing_fee_pct": {"type": "number", "minimum": 0, "exclusiveMaximum": 1},
+    "night_share": {"type": "number", "minimum": 0, "maximum": 1, "description": "Share of the print time on the night electricity rate."},
+    "product": {"type": "string", "description": "price-folder: the product name in the CSV."},
+    "copies": {"type": "object", "additionalProperties": {"type": "number", "minimum": 0}, "description": "price-folder: {file name: copies per product}."},
+    "skip": {"type": "array", "items": {"type": "string"}, "description": "price-folder: file names to leave out."},
+    "estimate": {
+      "type": "object",
+      "description": "price-folder: how grams and hours are guessed from a mesh.",
+      "properties": {"shell_mm": {"type": "number", "minimum": 0}, "infill": {"type": "number", "minimum": 0, "maximum": 1},
+                     "grams_per_hour": {"type": "number", "exclusiveMinimum": 0}}
+    }
+  },
+  "examples": [
+    {"material": "PETG:original", "profile": "service", "printer": "qalam-300-pro", "licence": "own", "stage": "selling",
+     "bom": [{"part": "dob_5w", "qty": 1}, {"part": "switch_rocker", "qty": 1}, {"part": "plug_cable_graded", "qty": 1}],
+     "copies": {"leg.stl": 3}}
+  ]
+}
