@@ -209,8 +209,10 @@ class PrintTallyExtension(QObject, Extension):
                 extra = list(extra) + [market_mod.BELOW_COST_WARNING]
             job.warnings = list(job.warnings) + [m for m in extra if m not in job.warnings]
         return json.dumps({"rows": rows, "warnings": job.warnings,
-                           "badge": f"{job.stage} · {job.licence}" + (" · DO NOT SELL" if not job.sellable else ""),
-                           "sellable": job.sellable, "total": money(b.final_price)})
+                           "badge": f"{job.stage} · {job.licence}" + (" · DO NOT SELL" if not job.sellable else "")
+                           + (" · ESTIMATE" if getattr(job, "estimated", False) else ""),
+                           "sellable": job.sellable,
+                           "total": money(b.final_price) if job.sellable else "NOT FOR SALE"})
 
     # ----------------------------------------------------- settings dialog
 

@@ -165,6 +165,14 @@ Core formula and both adapters built and tested (2026-08-18), extended with a se
 
 Every job gets a number, prototypes and odd materials included, because prototype filament is still money I spent. When a material has no price yet, I price it at `fallback_price_per_kg` (Rs 3,000 a kg by default). When the slicer names a material I don't have, or names none at all, I price it as `fallback_material` (PETG by default). Either way the header says `** ESTIMATE **` and a `!` line says exactly which material was guessed, so I know to fix the material file. Both settings live in `settings.json` or a profile. Setting `fallback_price_per_kg` to 0 brings back the old behaviour: the grams are left out and reported.
 
+### Licences
+
+Each model's `printtally.json` can say whose design it is with `"licence"`:
+
+- `own`: my design, no royalty. This is the default.
+- `commercial`: a design I licensed for selling. `royalty_fixed` (Rs per sale) and `royalty_pct` (a share of the price) are added to the price so my margin stays the same after the designer is paid.
+- `personal`: personal use only. I still see what it cost me to make, but the selling price is blocked: the report says `Selling price: BLOCKED`, no suggested price is shown, the Cura panel says NOT FOR SALE, and the folder CSV leaves the price empty.
+
 ### Real grams (weigh_factor)
 Set `"weigh_factor": 1.07` on a material in materials.json (or let printkit write it: `python -m printkit weigh --material PETG --slicer 120 --scale 128`) and PrintTally prices that filament at slicer grams x the factor.
 

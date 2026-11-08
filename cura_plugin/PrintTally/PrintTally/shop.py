@@ -257,6 +257,11 @@ class JobPrice:
     market_cap: float = 0.0
     estimated: bool = False          # a fallback price stood in somewhere: the price is an estimate
 
+    @property
+    def sale_price(self):
+        """The selling price, or None when the licence blocks selling (personal use only)."""
+        return self.breakdown.final_price if self.sellable else None
+
 
 def build_settings(directory: Path | None = None, profile: str | None = None, printer: str | None = None,
                    heads: int | None = None, prefs: dict | None = None, base: dict | None = None) -> dict:
@@ -520,7 +525,8 @@ def format_job(job: JobPrice) -> str:
     if getattr(b, "failure_cost", 0):
         out.append(f"  {'Failed prints':<24}     {money(b.failure_cost)}")
     out += [f"Cost to make:  {money(b.cost_to_make)}",
-            f"Selling price: {money(b.final_price)}" + ("" if job.sellable else "  (not for sale)")]
+            f"Selling price: {money(b.final_price)}" if job.sellable else
+            "Selling price: BLOCKED (personal-use licence: do not sell; cost shown for your records)"]
     if job.market is not None and job.sellable:
         cost = sum(v for _, v in job.parts[:-1]) if job.parts else b.cost_to_make
         grams = sum(g for _, g, _ in job.material_lines)

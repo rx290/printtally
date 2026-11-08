@@ -211,3 +211,20 @@ def test_unnamed_material_still_gets_a_price(lib):
 def test_known_priced_material_is_not_an_estimate(lib):
     job = shop.price_job({"PETG": 80.0}, 2.0, materials=lib, parts={})
     assert not job.estimated and not any(w.startswith("ESTIMATE") for w in job.warnings)
+
+
+def test_personal_licence_blocks_the_sale_price(lib):
+    job = shop.price_job({"PETG": 40.0}, 1.0, prefs={"licence": "personal"}, materials=lib, parts={})
+    text = shop.format_job(job)
+    assert job.sale_price is None
+    assert "Selling price: BLOCKED" in text and "Suggested" not in text and "YOUR PRICE" not in text
+    own = shop.price_job({"PETG": 40.0}, 1.0, materials=lib, parts={})
+    assert own.sale_price == own.breakdown.final_price and "Selling price: BLOCKED" not in shop.format_job(own)
+
+
+def test_commercial_licence_carries_the_royalty(lib):
+    base = shop.price_job({"PETG": 100.0}, 1.0, materials=lib, parts={})
+    paid = shop.price_job({"PETG": 100.0}, 1.0, prefs={"licence": "commercial", "royalty_fixed": 50},
+                          materials=lib, parts={})
+    assert paid.sellable and paid.breakdown.royalty_cost >= 50
+    assert paid.breakdown.final_price > base.breakdown.final_price
