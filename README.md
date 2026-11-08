@@ -173,6 +173,18 @@ Each model's `printtally.json` can say whose design it is with `"licence"`:
 - `commercial`: a design I licensed for selling. `royalty_fixed` (Rs per sale) and `royalty_pct` (a share of the price) are added to the price so my margin stays the same after the designer is paid.
 - `personal`: personal use only. I still see what it cost me to make, but the selling price is blocked: the report says `Selling price: BLOCKED`, no suggested price is shown, the Cura panel says NOT FOR SALE, and the folder CSV leaves the price empty.
 
+### Pricing a whole folder (price-folder)
+
+I have hundreds of STL packs and I don't want to slice each one just to know roughly what to charge. `printtally price-folder` walks the folders I give it and writes one CSV row per product:
+
+```
+python printtally.py price-folder ~/lamp-print-packs/home/01* --profile service --out home.csv
+```
+
+Every folder that directly holds STL, 3MF or G-code files is one product. Its sub-folders (like `hex6/` or `snap_parts/`) are their own rows, because in my packs they are variants, not extra parts. Folders named `reference` or `docs` and files with `DO_NOT_PRINT` in the name are skipped. When a `.gcode` sits next to an STL with the same name, the G-code wins and its real grams and time are used. Otherwise the grams come from the mesh: a 1.2 mm solid shell under the whole surface plus 15% infill inside, and the hours from 15 g per hour (the 0.4 mm / 0.20 mm speed in my print-time study). Against 26 products I had already sliced in Orca, this lands within a few percent on most (median 1.03 of the sliced grams); lithophanes and other 100% infill prints come out low. Those rows say `grams and hours from the mesh` in the Estimate column.
+
+The model's `printtally.json` files apply as usual (material, licence, BOM, profile, printer), plus four keys for folders: `copies` (`{"egg_leg_L.stl": 2}`), `skip` (files to leave out), `product` (the name in the CSV) and `estimate` (`{"shell_mm": 1.2, "infill": 0.15, "grams_per_hour": 15}`). The CSV columns use the same names as the Products tab in my Shop HQ workbook (Grams, Print hours, Unit cost, Parts cost / unit, Price) so I can paste them across. A personal-use model gets an empty price, and a price below the print's cost gets a warning in the row.
+
 ### Day and night electricity
 
 My electricity is not one price. In the day it is cheaper; at night the printers run on WAPDA at the full rate. `electricity_rate_per_kwh` in `settings.json` is the day rate and `electricity_rate_night_per_kwh` is the night rate (0 means I have not set it, and the day rate is used with a warning). A print that runs at night gets `--night`; one that starts in the evening and finishes in the morning gets `--night-share 0.5` (half its hours on the night rate). The same `night_share` can sit in `settings.json` or a model's `printtally.json`. The report says which rates it mixed, and the per-gram card follows the same rate.

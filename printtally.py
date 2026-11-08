@@ -10,6 +10,8 @@
     python printtally.py printers list | show NAME | set NAME key=value | use NAME
     python printtally.py materials                     list material profiles, batches and prices
     python printtally.py parts                         list lights and hardware (BOM) with local prices
+    python printtally.py price-folder ~/lamp-print-packs/home/01* --out home.csv
+                                                       price whole packs (STL/3MF estimated, G-code exact) into a CSV
     python printtally.py init                          write starter materials/parts/settings files
 
 Your files live in ~/.config/printtally ($PRINTTALLY_CONFIG overrides). Preference files
@@ -21,7 +23,7 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from core import shop, gcode_stats, sheet_sync, profiles  # noqa: E402
+from core import shop, gcode_stats, sheet_sync, profiles, folder  # noqa: E402
 
 TEMPLATES = {
     "materials.json": {name: {"price_per_kg": 0, "density_g_cm3": d, "aliases": a}
@@ -78,6 +80,20 @@ def _apply_night(args, prefs):
         prefs["night_share"] = 1.0
     if getattr(args, "night_share", None) is not None:
         prefs["night_share"] = args.night_share
+
+
+def cmd_price_folder(args):
+    night = 1.0 if args.night else args.night_share
+    rows = folder.price_folders(args.paths, args.out, profile=args.profile, printer=args.printer, heads=args.heads,
+                                material=args.material, night_share=night)
+    if not rows:
+        raise ValueError("No STL, 3MF or G-code files found in " + ", ".join(args.paths))
+    for r in rows:
+        flag = "  ESTIMATE" if r["Estimate"] else ""
+        price = f"Rs {r['Price']:>8,}" if r["Price"] != "" else "NOT FOR SALE"
+        print(f"{r['Product'][:44]:<44} {r['Grams']:>8,.0f} g {r['Print hours']:>6.1f} h  cost Rs {r['Unit cost']:>7,}"
+              f"  price {price}{flag}")
+    print(f"wrote    {args.out}  ({len(rows)} products)")
 
 
 def _kv(text):
@@ -224,6 +240,11 @@ def main(argv=None):
     p.add_argument("--multiplier", type=float, help="cost multiplier for --suggest multiplier")
     _selectors(p, True)
     p.set_defaults(func=cmd_price)
+    p = sub.add_parser("price-folder", help="price every product folder of STL/3MF/G-code files into a CSV")
+    p.add_argument("paths", nargs="+", metavar="PATH", help="pack folders, a folder of packs, or single files")
+    p.add_argument("--out", default="printtally_prices.csv", help="CSV to write (default: printtally_prices.csv)")
+    _selectors(p, True)
+    p.set_defaults(func=cmd_price_folder)
     p = sub.add_parser("build-card", help="generate your own per-gram rate card from your costs")
     for flag, typ in (("profit-multiplier", float), ("grams-per-hour", float), ("labour-rate-per-hour", float),
                       ("failure-rate", float), ("electricity-rate-per-kwh", float),
