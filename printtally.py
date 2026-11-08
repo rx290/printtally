@@ -9,6 +9,7 @@
     python printtally.py profiles list | show NAME | set NAME key=value | use NAME
     python printtally.py printers list | show NAME | set NAME key=value | use NAME
     python printtally.py materials                     list material profiles, batches and prices
+    python printtally.py parts                         list lights and hardware (BOM) with local prices
     python printtally.py init                          write starter materials/parts/settings files
 
 Your files live in ~/.config/printtally ($PRINTTALLY_CONFIG overrides). Preference files
@@ -25,7 +26,7 @@ from core import shop, gcode_stats, sheet_sync, profiles  # noqa: E402
 TEMPLATES = {
     "materials.json": {name: {"price_per_kg": 0, "density_g_cm3": d, "aliases": a}
                        for name, (d, a) in shop.DEFAULT_MATERIALS.items()},
-    "parts.json": {"example_switch": {"price": 0, "note": "add your real parts and prices"}},
+    "parts.json": json.loads((profiles.data_dir() / "parts.json").read_text()),
     "settings.json": shop.DEFAULT_SETTINGS,
 }
 
@@ -138,6 +139,16 @@ def cmd_materials(_args):
             print(f"{head}  my price Rs {m.price_per_kg:,.0f}/kg")
 
 
+def cmd_parts(_args):
+    parts = shop.load_parts()
+    for name, price in sorted(parts.items(), key=lambda kv: (str(parts.specs[kv[0]].get("category", "")), kv[0])):
+        spec = parts.specs[name]
+        flag = "printed" if name in parts.printed else ("ESTIMATE" if name in parts.estimates else "")
+        print(f"{str(spec.get('category', '')):<12} {name:<20} Rs {price:>8,.0f} / {spec.get('unit', 'each'):<6} "
+              f"{flag:<9} {spec.get('note', '')}")
+    print("Edit prices in " + str(shop.config_dir() / "parts.json") + " (printtally init copies this list there).")
+
+
 def cmd_build_card(args):
     from core import market
     settings = shop.build_settings(profile=args.profile, printer=args.printer, heads=args.heads)
@@ -218,6 +229,7 @@ def main(argv=None):
         p.add_argument("--heads", type=int, help="(printers show) heads in use")
         p.set_defaults(func=fn)
     sub.add_parser("materials", help="list material profiles, batches and prices").set_defaults(func=cmd_materials)
+    sub.add_parser("parts", help="list lights and hardware with prices (BOM parts)").set_defaults(func=cmd_parts)
     sub.add_parser("init", help="write starter config files").set_defaults(func=cmd_init)
     p = sub.add_parser("sync-sheet", help="sync prices from a published Google Sheet CSV")
     p.add_argument("url", nargs="?", metavar="URL", help="published CSV URL (saved for later syncs)")

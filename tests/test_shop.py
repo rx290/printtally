@@ -228,3 +228,47 @@ def test_commercial_licence_carries_the_royalty(lib):
                           materials=lib, parts={})
     assert paid.sellable and paid.breakdown.royalty_cost >= 50
     assert paid.breakdown.final_price > base.breakdown.final_price
+
+
+# ---------------------------------------------------------------- parts list (BOM) with local prices
+def test_shipped_parts_list_has_local_prices(tmp_path):
+    parts = shop.load_parts(tmp_path)              # empty config folder: only the shipped list
+    assert parts["dob_5w"] == 60 and parts["pi_zero_2w"] == 15000
+    assert "dob_12w" in parts.estimates and "dob_5w" not in parts.estimates
+    assert "lamp_holder" in parts.printed
+
+
+def test_your_parts_file_overrides_the_shipped_one(tmp_path):
+    (tmp_path / "parts.json").write_text(json.dumps({"dob_12w": {"price": 95}, "my_knob": 35}))
+    parts = shop.load_parts(tmp_path)
+    assert parts["dob_12w"] == 95 and "dob_12w" not in parts.estimates
+    assert parts["my_knob"] == 35 and parts["dob_5w"] == 60
+
+
+def test_lamp_bom_adds_up_and_flags_estimates(lib, tmp_path):
+    parts = shop.load_parts(tmp_path)
+    bom = [{"part": "dob_5w", "qty": 1}, {"part": "switch_rocker", "qty": 1},
+           {"part": "plug_cable_graded", "qty": 1}, {"part": "lamp_holder", "qty": 1}]
+    job = shop.price_job({"PETG": 150.0}, 5.0, prefs={"bom": bom}, materials=lib, parts=parts)
+    assert job.breakdown.hardware_cost == pytest.approx(60 + 40 + 250)
+    assert not any("No price for" in w for w in job.warnings)          # the printed holder is not "missing"
+    note = next(n for n in job.notes if n.startswith("Part prices still estimates"))
+    assert "switch_rocker" in note and "dob_5w" not in note
+
+
+def test_cli_parts_lists_the_seed(tmp_path):
+    import subprocess, sys
+    from pathlib import Path
+    cli = Path(__file__).resolve().parent.parent / "printtally.py"
+    r = subprocess.run([sys.executable, str(cli), "parts"], capture_output=True, text=True,
+                       env={"PRINTTALLY_CONFIG": str(tmp_path), "PATH": ""})
+    assert r.returncode == 0, r.stderr
+    assert "dob_5w" in r.stdout and "ESTIMATE" in r.stdout and "printed" in r.stdout
+
+
+def test_plugin_carries_the_same_parts_list():
+    from pathlib import Path
+    repo = Path(__file__).resolve().parent.parent
+    name = "parts.json"
+    assert (repo / "data" / name).read_text() == \
+        (repo / "cura_plugin" / "PrintTally" / "PrintTally" / "data" / name).read_text()

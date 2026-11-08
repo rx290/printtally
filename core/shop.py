@@ -211,18 +211,49 @@ def load_inventory(directory: Path | None = None) -> dict:
     return raw if isinstance(raw, dict) else {}
 
 
-def load_parts(directory: Path | None = None) -> dict:
-    """{part name: price per unit} from parts.json (empty until you add your parts)."""
-    raw = _read_json((directory or config_dir()) / "parts.json", {})
-    return {name: float(spec.get("price", 0.0) if isinstance(spec, dict) else spec) for name, spec in raw.items()}
+class PartPrices(dict):
+    """{part name: price per unit}, plus which prices are estimates and which parts you print yourself."""
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.estimates, self.printed, self.specs = set(), set(), {}
+
+
+def load_parts(directory: Path | None = None) -> PartPrices:
+    """Your parts with prices: the shipped data/parts.json (local reference prices), then your parts.json in the
+    config folder (yours wins). A part may be a plain number or {"price", "unit", "category", "status", "note"};
+    status "estimate" marks a guessed price, "printed" a part you print yourself (Rs 0 here, no warning)."""
+    out = PartPrices()
+    for path in (profiles_mod.data_dir() / "parts.json", (directory or config_dir()) / "parts.json"):
+        raw = _read_json(path, {})
+        for name, spec in (raw.items() if isinstance(raw, dict) else ()):
+            if name.startswith("_"):
+                continue
+            spec = spec if isinstance(spec, dict) else {"price": spec}
+            try:
+                out[name] = float(spec.get("price", 0) or 0)
+            except (TypeError, ValueError):
+                continue
+            out.specs[name] = spec
+            status = str(spec.get("status", "")).lower()
+            out.estimates.discard(name)
+            out.printed.discard(name)
+            if status == "estimate":
+                out.estimates.add(name)
+            elif status == "printed":
+                out.printed.add(name)
+    return out
 
 
 def bom_cost(bom: list, parts: dict) -> tuple[float, list, list]:
     """(total, lines, missing) for a bill of materials [{"part": name, "qty": n}, ...]."""
     total, lines, missing = 0.0, [], []
+    printed = getattr(parts, "printed", set())
     for item in bom or []:
         name, qty = item.get("part"), float(item.get("qty", 1))
         price = parts.get(name)
+        if name in printed:
+            lines.append((name, qty, 0.0))
+            continue
         if price is None or price <= 0:
             missing.append(name)
             continue
@@ -404,6 +435,9 @@ def price_job(grams_by_material: dict, print_hours: float, prefs: dict | None = 
     if missing:
         warnings.append("No price for " + ", ".join(sorted(set(map(str, missing)))) + " in parts.json: "
                         "left out of the parts cost.")
+    guessed = sorted({n for n, _, _ in plines if n in getattr(parts, "estimates", ())})
+    if guessed:
+        notes.append("Part prices still estimates (set your real price in parts.json): " + ", ".join(guessed) + ".")
     licence = prefs.get("licence", "own")
     if licence not in LICENCES:
         warnings.append(f"Unknown licence '{licence}'; treated as your own design.")
