@@ -1,0 +1,18 @@
+{
+  "name": "ender-hybrid",
+  "display_name": "Ender Hybrid",
+  "paid_hours_per_year": 2400,
+  "grams_per_hour": 10.0,
+  "heads": 1,
+  "watts": 140.0,
+  "extra_watts_per_head": 0.0,
+  "maintenance_per_hour": 10.0,
+  "cost": 110000,
+  "payback_years": 2,
+  "bed_mm": [
+    235,
+    235,
+    450
+  ],
+  "note": "Ender 3 clone body, 235x235x450, printed Orbiter clone direct drive, V6 0.4 brass nozzle with a 40 W heater, OG Ender 3 V2 bed, dual rails except Y, dual Z on a Mega + RAMPS, Ender 5 Pro board, Pi 3B, Klipper, BMCU. ESTIMATES, not measured: cost Rs 110,000 (the Railu's Rs 100,000 build plus the taller dual Z frame and RAMPS), 140 W average draw on PETG (bed at 75 C, 40 W hotend, two boards and a Pi), 10 g per hour (flow cap 11 mm3/s assumed, half the Qalam's 22; on the sliced top-15 test plates it ran about 85 percent of the Qalam's grams per hour). Replace with a power meter reading and the real build cost."
+}

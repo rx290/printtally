@@ -73,7 +73,8 @@ def test_service_costs_more_than_product_and_shows_remas():
 
 def test_printer_machine_rates():
     rates = {n: profiles.printer_rates(profiles.load_printer(n))["machine_rate_per_hour"] for n in profiles.list_printers()}
-    assert set(rates) == {"qalam-pro-400", "quadender-pro-400", "railu", "qalam-300-pro"}
+    assert set(rates) == {"qalam-pro-400", "quadender-pro-400", "railu", "qalam-300-pro", "ender-hybrid"}
+    assert rates["ender-hybrid"] == pytest.approx(110000 / 4800 + 10, abs=0.01)
     assert rates["qalam-pro-400"] == pytest.approx(325000 / 4800 + 10, abs=0.01)
     assert rates["qalam-300-pro"] == pytest.approx(325000 / 4800 + 10, abs=0.01)
     assert rates["railu"] == pytest.approx(100000 / 4800 + 10, abs=0.01)
