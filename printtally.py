@@ -194,9 +194,14 @@ def cmd_materials(_args):
             print(f"{head}  my price Rs {m.price_per_kg:,.0f}/kg")
 
 
-def cmd_parts(_args):
+def cmd_parts(args):
     parts = shop.load_parts()
+    only_est = getattr(args, "estimates", False)
+    if only_est:
+        print("Estimated part prices to confirm (put the real price in your parts.json and set status to owner):")
     for name, price in sorted(parts.items(), key=lambda kv: (str(parts.specs[kv[0]].get("category", "")), kv[0])):
+        if only_est and name not in parts.estimates:
+            continue
         spec = parts.specs[name]
         flag = "printed" if name in parts.printed else ("ESTIMATE" if name in parts.estimates else "")
         print(f"{str(spec.get('category', '')):<12} {name:<20} Rs {price:>8,.0f} / {spec.get('unit', 'each'):<6} "
@@ -301,7 +306,9 @@ def main(argv=None):
     sub.add_parser("materials", help="list material profiles, batches and prices").set_defaults(func=cmd_materials)
     sub.add_parser("customers", help="list customer profiles (friends, customer, ...)").set_defaults(
         func=cmd_customers)
-    sub.add_parser("parts", help="list lights and hardware with prices (BOM parts)").set_defaults(func=cmd_parts)
+    p = sub.add_parser("parts", help="list lights and hardware with prices (BOM parts)")
+    p.add_argument("--estimates", action="store_true", help="list only parts whose price is still an estimate")
+    p.set_defaults(func=cmd_parts)
     sub.add_parser("init", help="write starter config files").set_defaults(func=cmd_init)
     p = sub.add_parser("sync-sheet", help="sync prices from a published Google Sheet CSV")
     p.add_argument("url", nargs="?", metavar="URL", help="published CSV URL (saved for later syncs)")

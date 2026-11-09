@@ -408,3 +408,22 @@ def test_plugin_carries_customers_and_dropdown():
     assert "customerBox" in qml and "customer: customerBox" in qml
     job = shop.price_from_slicer([81.1], ["PETG"], 5.41, None, {"profile": "service", "customer": "friends"})
     assert job.customer == "friends"
+
+
+def test_cli_parts_estimates_lists_only_estimates(tmp_path):
+    import subprocess, sys
+    from pathlib import Path
+    cli = Path(__file__).resolve().parent.parent / "printtally.py"
+    r = subprocess.run([sys.executable, str(cli), "parts", "--estimates"], capture_output=True, text=True,
+                       env={"PRINTTALLY_CONFIG": str(tmp_path), "PATH": ""})
+    assert r.returncode == 0, r.stderr
+    assert "felt_dot_16mm" in r.stdout and "led_tealight" in r.stdout
+    assert "dob_5w" not in r.stdout and "esp32_c3_supermini" not in r.stdout and "lamp_holder" not in r.stdout
+
+
+def test_new_parts_flagged_and_owner_price_kept():
+    from core import shop
+    p = shop.load_parts()
+    assert "felt_dot_16mm" in p.estimates and "m8_nut" in p.estimates
+    assert p["esp32_c3_supermini"] == 850 and "esp32_c3_supermini" not in p.estimates
+    assert p["magnet_10x3"] == 20 and p["usb_cable"] == 150
