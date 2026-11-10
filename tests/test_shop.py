@@ -144,7 +144,7 @@ def test_price_from_slicer_uses_names_preferences_and_plugin_fallback(tmp_path):
                                  {"price_per_kg": 3000, "electricity_rate_per_kwh": 40}, directory=cfg)
     costs = {n: c for n, _, c in job.material_lines}
     assert costs["PETG"] == pytest.approx(225.0)          # your materials.json price
-    assert costs["PLA"] == pytest.approx(30.0)            # not priced yet: the plugin's price per kg
+    assert costs["PLA"] == pytest.approx(52.5)            # data/materials PLA estimate (5,250 per kg)
     assert job.breakdown.hardware_cost == pytest.approx(180.0) and job.stage == "selling"
     assert not any("Electricity rate not set" in w for w in job.warnings)
 

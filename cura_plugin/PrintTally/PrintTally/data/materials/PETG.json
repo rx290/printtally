@@ -1,6 +1,6 @@
 {
   "name": "PETG",
-  "prices_date": "2026-10-25",
+  "prices_date": "2026-11-10",
   "unit": "PKR per kg",
   "density_g_cm3": 1.27,
   "aliases": [
@@ -11,12 +11,15 @@
   ],
   "remas_key": "PETG",
   "batches": {
-    "A/B grade": {
-      "my_price": 2500
+    "market": {
+      "my_price": 3650,
+      "note": "midpoint of 3,500-3,800"
     },
     "original": {
-      "my_price": 3000,
-      "list_price": 3700
+      "my_price": 3800,
+      "list_price": 4000,
+      "note": "branded spool, list price estimated"
     }
-  }
+  },
+  "note": "Owner 2026-11-10: market rate Rs 3,500-3,800 per kg (same as ABS); old A/B grade Rs 2,500 and original Rs 3,000 no longer available."
 }

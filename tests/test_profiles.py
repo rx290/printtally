@@ -42,15 +42,15 @@ def test_product_profile_equals_the_old_settings_and_output():
     s = shop.build_settings(profile="product", printer="none")
     for key, value in old.items():
         assert s[key] == value, key
-    # snapshot of the old default output: 200 g PETG at 2,500, 5 h, electricity 90 (taken before profiles existed)
+    # snapshot of the default output: 200 g PETG at 3,650 (owner market rate 2026-11-10; was 2,500), 5 h, electricity 90
     job = price("product", hours=5.0, printer="none")
     b = job.breakdown
-    assert (b.cost_to_make, b.final_price) == (869.38, 1086.72)
-    assert round(job.mine.customer) == 3140 and round(job.mine.reseller) == 2600
+    assert (b.cost_to_make, b.final_price) == (1115.47, 1394.34)
+    assert round(job.mine.customer) == 3600 and round(job.mine.reseller) == 2980
     assert round(job.market.customer) == 6000 and round(job.market.reseller) == 5000
     text = shop.format_job(job)
-    for line in ("Selling price: 1,086.72", "= YOUR PRICE                3,140   (reseller 2,600)",
-                 "Gap to market: 2,860 below Remas (customer)", "Suggested:     3,150  (your price)"):
+    for line in ("Selling price: 1,394.34", "= YOUR PRICE                3,600   (reseller 2,980)",
+                 "Gap to market: 2,400 below Remas (customer)", "Suggested:     3,600  (your price)"):
         assert line in text
 
 
@@ -94,7 +94,7 @@ def test_service_price_orders_big_above_mid_above_small():
     names = ("qalam-pro-400", "qalam-300-pro", "railu")
     per_g = {p: price("service", printer=p).mine.customer / 200 for p in names}
     assert per_g[names[0]] == per_g[names[1]] > per_g[names[2]]   # both Qalams share one design and price
-    assert per_g[names[0]] == 28.5 and 18 <= per_g[names[2]] <= 21     # Qalam held at 95% of Remas
+    assert per_g[names[0]] == 28.5 and 20 <= per_g[names[2]] <= 24     # Qalam held at 95% of Remas
     quad = price("service", printer="quadender-pro-400").mine.customer / 200
     assert quad < per_g["railu"]
     assert price("service", printer="quadender-pro-400", heads=1).mine.customer / 200 > quad
@@ -142,18 +142,18 @@ def test_slow_fine_layer_print_costs_more():
 
 def test_batches_default_to_cheapest_and_can_be_chosen():
     lib = shop.load_materials()
-    assert lib["PETG"].price_per_kg == 2500 and lib["PETG"].batch == "A/B grade"
-    assert set(lib["PETG"].batches) == {"A/B grade", "original"}
+    assert lib["PETG"].price_per_kg == 3650 and lib["PETG"].batch == "market"
+    assert set(lib["PETG"].batches) == {"market", "original"}
     job = price("product", prefs={"material": "PETG:original"})
-    assert job.material_lines[0][2] == pytest.approx(600.0)            # 200 g at my price 3,000
-    assert any("list price Rs 3,700" in n and "reference only" in n for n in job.notes)
+    assert job.material_lines[0][2] == pytest.approx(760.0)            # 200 g at my price 3,800
+    assert any("list price Rs 4,000" in n and "reference only" in n for n in job.notes)
     with pytest.raises(ValueError, match="no batch 'zzz'"):
         shop.select_batch(shop.load_materials()["PETG"], "zzz")
 
 
 def test_material_prices_from_the_owner():
     lib = shop.load_materials()
-    assert (lib["PET"].price_per_kg, lib["ABS"].price_per_kg, lib["PLA"].price_per_kg) == (2500, 3400, 3000)
+    assert (lib["PET"].price_per_kg, lib["ABS"].price_per_kg, lib["PLA"].price_per_kg) == (2500, 3400, 5250)
     s = shop.build_settings(profile="product")
     s["order_kg"] = {"ABS": 12}
     job = shop.price_job({"ABS": 100.0}, 1.0, {}, s, lib, parts={}, inventory={})
